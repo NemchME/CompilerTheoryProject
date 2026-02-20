@@ -41,7 +41,6 @@ class PascalParser:
         return self.advance()
 
     def parse_program(self) -> ast.Program:
-        # program <ident> ; <block> .
         self.expect("KW", "program")
         name = self.expect("IDENT").value
         self.expect("SYM", ";")
@@ -60,7 +59,6 @@ class PascalParser:
         return ast.Block(var_decls=var_decls, statements=stmts)
 
     def parse_var_section(self) -> List[ast.VarDecl]:
-        # var ( ident (, ident)* : type ; )+
         decls: List[ast.VarDecl] = []
         self.expect("KW", "var")
         while self.peek("IDENT"):
@@ -94,5 +92,41 @@ class PascalParser:
                     )
         return stmts
 
-    def parse_program(self) -> ast.Program:
-        raise NotImplementedError
+    def parse_stmt(self) -> ast.Stmt:
+        if self.peek("KW", "if"):
+            return self.parse_if()
+        if self.peek("KW", "while"):
+            return self.parse_while()
+        if self.peek("IDENT"):
+            name = self.expect("IDENT").value
+            self.expect("OP", ":=")
+            expr = self.parse_expr()
+            return ast.Assign(target=name, expr=expr)
+        t = self.curr()
+        raise PascalParserError(f"Unknown statement at {t.line}:{t.col}: {t.kind}:{t.value}")
+
+    def parse_if(self) -> ast.If:
+        self.expect("KW", "if")
+        cond = self.parse_expr()
+        self.expect("KW", "then")
+        then_branch = self.parse_single_or_block_stmt()
+        else_branch = None
+        if self.peek("KW", "else"):
+            self.advance()
+            else_branch = self.parse_single_or_block_stmt()
+        return ast.If(cond=cond, then_branch=then_branch, else_branch=else_branch)
+
+    def parse_while(self) -> ast.While:
+        self.expect("KW", "while")
+        cond = self.parse_expr()
+        self.expect("KW", "do")
+        body = self.parse_single_or_block_stmt()
+        return ast.While(cond=cond, body=body)
+
+    def parse_single_or_block_stmt(self) -> List[ast.Stmt]:
+        if self.peek("KW", "begin"):
+            self.advance()
+            stmts = self.parse_stmt_list(until_kw="end")
+            self.expect("KW", "end")
+            return stmts
+        return [self.parse_stmt()]
