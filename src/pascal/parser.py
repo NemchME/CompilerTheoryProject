@@ -40,7 +40,59 @@ class PascalParser:
             )
         return self.advance()
 
-    # далее будут правила грамматики
+    def parse_program(self) -> ast.Program:
+        # program <ident> ; <block> .
+        self.expect("KW", "program")
+        name = self.expect("IDENT").value
+        self.expect("SYM", ";")
+        block = self.parse_block()
+        self.expect("SYM", ".")
+        self.expect("EOF")
+        return ast.Program(name=name, block=block)
+
+    def parse_block(self) -> ast.Block:
+        var_decls: List[ast.VarDecl] = []
+        if self.peek("KW", "var"):
+            var_decls = self.parse_var_section()
+        self.expect("KW", "begin")
+        stmts = self.parse_stmt_list(until_kw="end")
+        self.expect("KW", "end")
+        return ast.Block(var_decls=var_decls, statements=stmts)
+
+    def parse_var_section(self) -> List[ast.VarDecl]:
+        # var ( ident (, ident)* : type ; )+
+        decls: List[ast.VarDecl] = []
+        self.expect("KW", "var")
+        while self.peek("IDENT"):
+            names = [self.expect("IDENT").value]
+            while self.peek("SYM", ","):
+                self.advance()
+                names.append(self.expect("IDENT").value)
+            self.expect("SYM", ":")
+            type_tok = self.expect("KW")  # integer/char/boolean
+            if type_tok.value not in ("integer", "char", "boolean"):
+                raise PascalParserError(
+                    f"Unknown type {type_tok.value} at {type_tok.line}:{type_tok.col}"
+                )
+            self.expect("SYM", ";")
+            decls.append(ast.VarDecl(names=names, type_name=type_tok.value))
+        return decls
+
+    def parse_stmt_list(self, until_kw: str) -> List[ast.Stmt]:
+        stmts: List[ast.Stmt] = []
+        while not self.peek("KW", until_kw):
+            stmts.append(self.parse_stmt())
+            if self.peek("SYM", ";"):
+                self.advance()
+                while self.peek("SYM", ";"):
+                    self.advance()
+            else:
+                if not self.peek("KW", until_kw):
+                    t = self.curr()
+                    raise PascalParserError(
+                        f"Expected ';' or '{until_kw}', got {t.kind}:{t.value} at {t.line}:{t.col}"
+                    )
+        return stmts
 
     def parse_program(self) -> ast.Program:
         raise NotImplementedError
