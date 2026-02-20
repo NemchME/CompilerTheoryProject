@@ -130,3 +130,64 @@ class PascalParser:
             self.expect("KW", "end")
             return stmts
         return [self.parse_stmt()]
+
+    def parse_expr(self) -> ast.Expr:
+        return self.parse_rel()
+
+    def parse_rel(self) -> ast.Expr:
+        left = self.parse_add()
+        if self.peek("OP") and self.curr().value in ("=", "<>", "<", "<=", ">", ">="):
+            op = self.advance().value
+            right = self.parse_add()
+            return ast.BinOp(op=op, left=left, right=right)
+        return left
+
+    def parse_add(self) -> ast.Expr:
+        left = self.parse_mul()
+        while self.peek("OP") and self.curr().value in ("+", "-"):
+            op = self.advance().value
+            right = self.parse_mul()
+            left = ast.BinOp(op=op, left=left, right=right)
+        return left
+
+    def parse_mul(self) -> ast.Expr:
+        left = self.parse_unary()
+        while True:
+            if self.peek("OP") and self.curr().value in ("*", "/"):
+                op = self.advance().value
+            elif self.peek("KW") and self.curr().value in ("div", "mod"):
+                op = self.advance().value
+            else:
+                break
+            right = self.parse_unary()
+            left = ast.BinOp(op=op, left=left, right=right)
+        return left
+
+    def parse_unary(self) -> ast.Expr:
+        if self.peek("KW", "not"):
+            self.advance()
+            return ast.UnOp(op="not", operand=self.parse_unary())
+        if self.peek("OP") and self.curr().value in ("+", "-"):
+            op = self.advance().value
+            return ast.UnOp(op=op, operand=self.parse_unary())
+        return self.parse_primary()
+
+    def parse_primary(self) -> ast.Expr:
+        if self.peek("INT"):
+            v = int(self.advance().value)
+            return ast.Literal(value=v)
+        if self.peek("CHAR"):
+            c = self.advance().value
+            return ast.Literal(value=c)
+        if self.peek("KW") and self.curr().value in ("true", "false"):
+            b = self.advance().value == "true"
+            return ast.Literal(value=b)
+        if self.peek("IDENT"):
+            return ast.Ident(name=self.advance().value)
+        if self.peek("SYM", "("):
+            self.advance()
+            e = self.parse_expr()
+            self.expect("SYM", ")")
+            return e
+        t = self.curr()
+        raise PascalParserError(f"Expected expression at {t.line}:{t.col}, got {t.kind}:{t.value}")
