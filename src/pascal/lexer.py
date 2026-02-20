@@ -66,7 +66,10 @@ def tokenize(text: str) -> List[Token]:
             continue
 
         if ch in SINGLE:
-            kind = "OP" if ch in "+-*/=<>:" else "SYM"
+            if ch in "+-*/=<>":
+                kind = "OP"
+            else:
+                kind = "SYM"
             tokens.append(Token(kind, ch, line, col))
             adv(1)
             continue
