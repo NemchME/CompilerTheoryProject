@@ -5,6 +5,7 @@ from src.pascal.lexer import Token, tokenize
 from src.ast import nodes as ast
 
 
+
 class PascalParserError(Exception):
     pass
 
@@ -19,6 +20,7 @@ class PascalParser:
 
     def peek(self, kind: str, value: Optional[str] = None) -> bool:
         t = self.curr()
+
         if t.kind != kind:
             return False
         if value is not None and t.value != value:
@@ -97,11 +99,26 @@ class PascalParser:
             return self.parse_if()
         if self.peek("KW", "while"):
             return self.parse_while()
+        if self.peek("KW", "for"):
+            return self.parse_for()
+        if self.peek("KW", "break"):
+            self.advance()
+            return ast.Break()
+        if self.peek("KW", "continue"):
+            self.advance()
+            return ast.Continue()
+
+        if self.peek("KW") and self.curr().value in ("write", "writeln"):
+            return self.parse_write()
+        if self.peek("KW") and self.curr().value in ("read", "readln"):
+            return self.parse_read()
+
         if self.peek("IDENT"):
             name = self.expect("IDENT").value
             self.expect("OP", ":=")
             expr = self.parse_expr()
             return ast.Assign(target=name, expr=expr)
+
         t = self.curr()
         raise PascalParserError(f"Unknown statement at {t.line}:{t.col}: {t.kind}:{t.value}")
 
@@ -123,6 +140,42 @@ class PascalParser:
         body = self.parse_single_or_block_stmt()
         return ast.While(cond=cond, body=body)
 
+    def parse_for(self) -> ast.For:
+        self.expect("KW", "for")
+        var_name = self.expect("IDENT").value
+        self.expect("OP", ":=")
+        start = self.parse_expr()
+
+        if self.peek("KW", "to"):
+            direction = self.advance().value
+        elif self.peek("KW", "downto"):
+            direction = self.advance().value
+        else:
+            t = self.curr()
+            raise PascalParserError(f"Expected 'to' or 'downto', got {t.kind}:{t.value} at {t.line}:{t.col}")
+
+        end = self.parse_expr()
+        self.expect("KW", "do")
+        body = self.parse_single_or_block_stmt()
+        return ast.For(var=var_name, start=start, direction=direction, end=end, body=body)
+
+    def parse_write(self) -> ast.Write:
+        kw = self.expect("KW")
+        newline = kw.value == "writeln"
+        self.expect("SYM", "(")
+        expr = None
+        if not self.peek("SYM", ")"):
+            expr = self.parse_expr()
+        self.expect("SYM", ")")
+        return ast.Write(expr=expr, newline=newline)
+
+    def parse_read(self) -> ast.Read:
+        kw = self.expect("KW")
+        self.expect("SYM", "(")
+        target = self.expect("IDENT").value
+        self.expect("SYM", ")")
+        return ast.Read(target=target)
+
     def parse_single_or_block_stmt(self) -> List[ast.Stmt]:
         if self.peek("KW", "begin"):
             self.advance()
@@ -132,7 +185,23 @@ class PascalParser:
         return [self.parse_stmt()]
 
     def parse_expr(self) -> ast.Expr:
-        return self.parse_rel()
+        return self.parse_or()
+
+    def parse_or(self) -> ast.Expr:
+        left = self.parse_and()
+        while self.peek("KW", "or"):
+            op = self.advance().value
+            right = self.parse_and()
+            left = ast.BinOp(op=op, left=left, right=right)
+        return left
+
+    def parse_and(self) -> ast.Expr:
+        left = self.parse_rel()
+        while self.peek("KW", "and"):
+            op = self.advance().value
+            right = self.parse_rel()
+            left = ast.BinOp(op=op, left=left, right=right)
+        return left
 
     def parse_rel(self) -> ast.Expr:
         left = self.parse_add()
