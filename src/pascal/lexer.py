@@ -16,7 +16,10 @@ KEYWORDS = {
     "integer", "char", "boolean",
     "if", "then", "else",
     "while", "do",
-    "div", "mod", "not",
+    "for", "to", "downto",
+    "break", "continue",
+    "write", "writeln", "read", "readln",
+    "div", "mod", "not", "and", "or",
     "true", "false",
 }
 

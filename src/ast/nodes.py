@@ -45,6 +45,35 @@ class While(Stmt):
     cond: "Expr"
     body: List[Stmt]
 
+@dataclass
+class For(Stmt):
+    var: str
+    start: "Expr"
+    direction: str
+    end: "Expr"
+    body: List[Stmt]
+
+
+@dataclass
+class Break(Stmt):
+    pass
+
+
+@dataclass
+class Continue(Stmt):
+    pass
+
+
+@dataclass
+class Write(Stmt):
+    expr: Optional["Expr"]
+    newline: bool = False
+
+
+@dataclass
+class Read(Stmt):
+    target: str
+
 class Expr(ASTNode):
     pass
 
