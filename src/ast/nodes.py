@@ -1,57 +1,103 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
+from enum import Enum
 
 
 class ASTNode:
     pass
 
-@dataclass
-class Program(ASTNode):
-    name: str
-    block: "Block"
-
-
-@dataclass
-class Block(ASTNode):
-    var_decls: List["VarDecl"]
-    statements: List["Stmt"]
-
-
-@dataclass
-class VarDecl(ASTNode):
-    names: List[str]
-    type_name: str
 
 class Stmt(ASTNode):
     pass
 
 
+class Expr(ASTNode):
+    pass
+
+
+class BinaryOpKind(Enum):
+    ADD = "+"
+    SUB = "-"
+    MUL = "*"
+    DIV = "/"
+    MOD = "mod"
+    AND = "and"
+    OR = "or"
+    EQ = "="
+    NE = "<>"
+    LT = "<"
+    LE = "<="
+    GT = ">"
+    GE = ">="
+
+
+class UnaryOpKind(Enum):
+    PLUS = "+"
+    MINUS = "-"
+    NOT = "not"
+
+
+@dataclass
+class Ident(Expr):
+    name: str
+
+
+@dataclass
+class Literal(Expr):
+    value: object
+
+
+@dataclass
+class BinOp(Expr):
+    op: BinaryOpKind
+    left: Expr
+    right: Expr
+
+
+@dataclass
+class UnOp(Expr):
+    op: UnaryOpKind
+    operand: Expr
+
+
+@dataclass
+class VarDecl(ASTNode):
+    ident: Ident
+    type_name: str
+
+
+@dataclass
+class CompoundStmt(Stmt):
+    statements: List[Stmt]
+
+
 @dataclass
 class Assign(Stmt):
-    target: str
-    expr: "Expr"
+    target: Ident
+    value: Expr
 
 
 @dataclass
 class If(Stmt):
-    cond: "Expr"
-    then_branch: List[Stmt]
-    else_branch: Optional[List[Stmt]]
+    cond: Expr
+    then_branch: CompoundStmt
+    else_branch: Optional[CompoundStmt]
 
 
 @dataclass
 class While(Stmt):
-    cond: "Expr"
-    body: List[Stmt]
+    cond: Expr
+    body: CompoundStmt
+
 
 @dataclass
 class For(Stmt):
-    var: str
-    start: "Expr"
+    var: Ident
+    start: Expr
     direction: str
-    end: "Expr"
-    body: List[Stmt]
+    end: Expr
+    body: CompoundStmt
 
 
 @dataclass
@@ -66,36 +112,22 @@ class Continue(Stmt):
 
 @dataclass
 class Write(Stmt):
-    expr: Optional["Expr"]
+    expr: Optional[Expr]
     newline: bool = False
 
 
 @dataclass
 class Read(Stmt):
-    target: str
-
-class Expr(ASTNode):
-    pass
+    target: Ident
 
 
 @dataclass
-class BinOp(Expr):
-    op: str
-    left: Expr
-    right: Expr
+class Block(ASTNode):
+    var_decls: List[VarDecl]
+    body: CompoundStmt
 
 
 @dataclass
-class UnOp(Expr):
-    op: str
-    operand: Expr
-
-
-@dataclass
-class Literal(Expr):
-    value: object
-
-
-@dataclass
-class Ident(Expr):
+class Program(ASTNode):
     name: str
+    block: Block

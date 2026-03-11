@@ -5,7 +5,6 @@ from src.pascal.lexer import Token, tokenize
 from src.ast import nodes as ast
 
 
-
 class PascalParserError(Exception):
     pass
 
@@ -20,7 +19,6 @@ class PascalParser:
 
     def peek(self, kind: str, value: Optional[str] = None) -> bool:
         t = self.curr()
-
         if t.kind != kind:
             return False
         if value is not None and t.value != value:
@@ -56,32 +54,41 @@ class PascalParser:
         if self.peek("KW", "var"):
             var_decls = self.parse_var_section()
         self.expect("KW", "begin")
-        stmts = self.parse_stmt_list(until_kw="end")
+        stmts = self.parse_stmt_list("end")
         self.expect("KW", "end")
-        return ast.Block(var_decls=var_decls, statements=stmts)
+        return ast.Block(var_decls=var_decls, body=ast.CompoundStmt(stmts))
 
     def parse_var_section(self) -> List[ast.VarDecl]:
         decls: List[ast.VarDecl] = []
         self.expect("KW", "var")
+
         while self.peek("IDENT"):
             names = [self.expect("IDENT").value]
+
             while self.peek("SYM", ","):
                 self.advance()
                 names.append(self.expect("IDENT").value)
+
             self.expect("SYM", ":")
-            type_tok = self.expect("KW")  # integer/char/boolean
-            if type_tok.value not in ("integer", "char", "boolean"):
-                raise PascalParserError(
-                    f"Unknown type {type_tok.value} at {type_tok.line}:{type_tok.col}"
-                )
+            type_tok = self.expect("KW")
             self.expect("SYM", ";")
-            decls.append(ast.VarDecl(names=names, type_name=type_tok.value))
+
+            for name in names:
+                decls.append(
+                    ast.VarDecl(
+                        ident=ast.Ident(name=name),
+                        type_name=type_tok.value
+                    )
+                )
+
         return decls
 
     def parse_stmt_list(self, until_kw: str) -> List[ast.Stmt]:
         stmts: List[ast.Stmt] = []
+
         while not self.peek("KW", until_kw):
             stmts.append(self.parse_stmt())
+
             if self.peek("SYM", ";"):
                 self.advance()
                 while self.peek("SYM", ";"):
@@ -90,26 +97,32 @@ class PascalParser:
                 if not self.peek("KW", until_kw):
                     t = self.curr()
                     raise PascalParserError(
-                        f"Expected ';' or '{until_kw}', got {t.kind}:{t.value} at {t.line}:{t.col}"
+                        f"Expected ';' or '{until_kw}', got {t.kind}:{t.value}"
                     )
+
         return stmts
 
     def parse_stmt(self) -> ast.Stmt:
         if self.peek("KW", "if"):
             return self.parse_if()
+
         if self.peek("KW", "while"):
             return self.parse_while()
+
         if self.peek("KW", "for"):
             return self.parse_for()
+
         if self.peek("KW", "break"):
             self.advance()
             return ast.Break()
+
         if self.peek("KW", "continue"):
             self.advance()
             return ast.Continue()
 
         if self.peek("KW") and self.curr().value in ("write", "writeln"):
             return self.parse_write()
+
         if self.peek("KW") and self.curr().value in ("read", "readln"):
             return self.parse_read()
 
@@ -117,146 +130,170 @@ class PascalParser:
             name = self.expect("IDENT").value
             self.expect("OP", ":=")
             expr = self.parse_expr()
-            return ast.Assign(target=name, expr=expr)
+
+            return ast.Assign(
+                target=ast.Ident(name=name),
+                value=expr
+            )
 
         t = self.curr()
-        raise PascalParserError(f"Unknown statement at {t.line}:{t.col}: {t.kind}:{t.value}")
+        raise PascalParserError(f"Unknown statement {t.kind}:{t.value}")
 
     def parse_if(self) -> ast.If:
         self.expect("KW", "if")
         cond = self.parse_expr()
         self.expect("KW", "then")
-        then_branch = self.parse_single_or_block_stmt()
+
+        then_branch = ast.CompoundStmt(self.parse_single_or_block())
+
         else_branch = None
         if self.peek("KW", "else"):
             self.advance()
-            else_branch = self.parse_single_or_block_stmt()
-        return ast.If(cond=cond, then_branch=then_branch, else_branch=else_branch)
+            else_branch = ast.CompoundStmt(self.parse_single_or_block())
+
+        return ast.If(cond, then_branch, else_branch)
 
     def parse_while(self) -> ast.While:
         self.expect("KW", "while")
         cond = self.parse_expr()
         self.expect("KW", "do")
-        body = self.parse_single_or_block_stmt()
-        return ast.While(cond=cond, body=body)
+
+        body = ast.CompoundStmt(self.parse_single_or_block())
+
+        return ast.While(cond, body)
 
     def parse_for(self) -> ast.For:
         self.expect("KW", "for")
-        var_name = self.expect("IDENT").value
+
+        name = self.expect("IDENT").value
+
         self.expect("OP", ":=")
+
         start = self.parse_expr()
 
         if self.peek("KW", "to"):
-            direction = self.advance().value
-        elif self.peek("KW", "downto"):
-            direction = self.advance().value
+            direction = "to"
+            self.advance()
         else:
-            t = self.curr()
-            raise PascalParserError(f"Expected 'to' or 'downto', got {t.kind}:{t.value} at {t.line}:{t.col}")
+            direction = "downto"
+            self.advance()
 
         end = self.parse_expr()
+
         self.expect("KW", "do")
-        body = self.parse_single_or_block_stmt()
-        return ast.For(var=var_name, start=start, direction=direction, end=end, body=body)
+
+        body = ast.CompoundStmt(self.parse_single_or_block())
+
+        return ast.For(
+            var=ast.Ident(name=name),
+            start=start,
+            direction=direction,
+            end=end,
+            body=body
+        )
 
     def parse_write(self) -> ast.Write:
         kw = self.expect("KW")
+
         newline = kw.value == "writeln"
+
         self.expect("SYM", "(")
+
         expr = None
         if not self.peek("SYM", ")"):
             expr = self.parse_expr()
+
         self.expect("SYM", ")")
-        return ast.Write(expr=expr, newline=newline)
+
+        return ast.Write(expr, newline)
 
     def parse_read(self) -> ast.Read:
-        kw = self.expect("KW")
-        self.expect("SYM", "(")
-        target = self.expect("IDENT").value
-        self.expect("SYM", ")")
-        return ast.Read(target=target)
+        self.expect("KW")
 
-    def parse_single_or_block_stmt(self) -> List[ast.Stmt]:
+        self.expect("SYM", "(")
+
+        name = self.expect("IDENT").value
+
+        self.expect("SYM", ")")
+
+        return ast.Read(ast.Ident(name))
+
+    def parse_single_or_block(self) -> List[ast.Stmt]:
         if self.peek("KW", "begin"):
             self.advance()
-            stmts = self.parse_stmt_list(until_kw="end")
+            stmts = self.parse_stmt_list("end")
             self.expect("KW", "end")
             return stmts
+
         return [self.parse_stmt()]
 
     def parse_expr(self) -> ast.Expr:
-        return self.parse_or()
-
-    def parse_or(self) -> ast.Expr:
-        left = self.parse_and()
-        while self.peek("KW", "or"):
-            op = self.advance().value
-            right = self.parse_and()
-            left = ast.BinOp(op=op, left=left, right=right)
-        return left
-
-    def parse_and(self) -> ast.Expr:
-        left = self.parse_rel()
-        while self.peek("KW", "and"):
-            op = self.advance().value
-            right = self.parse_rel()
-            left = ast.BinOp(op=op, left=left, right=right)
-        return left
-
-    def parse_rel(self) -> ast.Expr:
         left = self.parse_add()
-        if self.peek("OP") and self.curr().value in ("=", "<>", "<", "<=", ">", ">="):
+
+        while self.peek("OP") and self.curr().value in (
+            "=", "<>", "<", "<=", ">", ">="
+        ):
             op = self.advance().value
             right = self.parse_add()
-            return ast.BinOp(op=op, left=left, right=right)
+
+            mapping = {
+                "=": ast.BinaryOpKind.EQ,
+                "<>": ast.BinaryOpKind.NE,
+                "<": ast.BinaryOpKind.LT,
+                "<=": ast.BinaryOpKind.LE,
+                ">": ast.BinaryOpKind.GT,
+                ">=": ast.BinaryOpKind.GE
+            }
+
+            left = ast.BinOp(mapping[op], left, right)
+
         return left
 
     def parse_add(self) -> ast.Expr:
         left = self.parse_mul()
+
         while self.peek("OP") and self.curr().value in ("+", "-"):
             op = self.advance().value
             right = self.parse_mul()
-            left = ast.BinOp(op=op, left=left, right=right)
+
+            kind = ast.BinaryOpKind.ADD if op == "+" else ast.BinaryOpKind.SUB
+
+            left = ast.BinOp(kind, left, right)
+
         return left
 
     def parse_mul(self) -> ast.Expr:
         left = self.parse_unary()
-        while True:
-            if self.peek("OP") and self.curr().value in ("*", "/"):
-                op = self.advance().value
-            elif self.peek("KW") and self.curr().value in ("div", "mod"):
-                op = self.advance().value
-            else:
-                break
+
+        while self.peek("OP") and self.curr().value in ("*", "/"):
+            op = self.advance().value
             right = self.parse_unary()
-            left = ast.BinOp(op=op, left=left, right=right)
+
+            kind = ast.BinaryOpKind.MUL if op == "*" else ast.BinaryOpKind.DIV
+
+            left = ast.BinOp(kind, left, right)
+
         return left
 
     def parse_unary(self) -> ast.Expr:
-        if self.peek("KW", "not"):
+        if self.peek("OP") and self.curr().value == "-":
             self.advance()
-            return ast.UnOp(op="not", operand=self.parse_unary())
-        if self.peek("OP") and self.curr().value in ("+", "-"):
-            op = self.advance().value
-            return ast.UnOp(op=op, operand=self.parse_unary())
+            return ast.UnOp(ast.UnaryOpKind.MINUS, self.parse_unary())
+
         return self.parse_primary()
 
     def parse_primary(self) -> ast.Expr:
         if self.peek("INT"):
-            v = int(self.advance().value)
-            return ast.Literal(value=v)
-        if self.peek("CHAR"):
-            c = self.advance().value
-            return ast.Literal(value=c)
-        if self.peek("KW") and self.curr().value in ("true", "false"):
-            b = self.advance().value == "true"
-            return ast.Literal(value=b)
+            return ast.Literal(int(self.advance().value))
+
         if self.peek("IDENT"):
-            return ast.Ident(name=self.advance().value)
+            return ast.Ident(self.advance().value)
+
         if self.peek("SYM", "("):
             self.advance()
             e = self.parse_expr()
             self.expect("SYM", ")")
             return e
+
         t = self.curr()
-        raise PascalParserError(f"Expected expression at {t.line}:{t.col}, got {t.kind}:{t.value}")
+        raise PascalParserError(f"Expected expression {t.kind}:{t.value}")

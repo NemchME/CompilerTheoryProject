@@ -1,36 +1,76 @@
-from __future__ import annotations
-from dataclasses import is_dataclass, fields
 from typing import Any
 
-from src.ast.nodes import ASTNode
+
+def node_label(node):
+    t = type(node).__name__
+
+    if t == "Program":
+        return f"Program {node.name}"
+
+    if t == "Ident":
+        return f"Ident {node.name}"
+
+    if t == "Literal":
+        return f"Literal {node.value}"
+
+    if t == "BinOp":
+        return f"BinOp {node.op.value}"
+
+    if t == "UnOp":
+        return f"UnOp {node.op.value}"
+
+    if t == "VarDecl":
+        return f"VarDecl {node.ident.name} : {node.type_name}"
+
+    return t
 
 
-def dump_ast(node: Any, indent: str = "", is_last: bool = True) -> str:
-    branch = "└─" if is_last else "├─"
-    if node is None:
-        return indent + branch + "None\n"
+def children(node):
+    t = type(node).__name__
 
-    if isinstance(node, (str, int, bool, float)):
-        return indent + branch + repr(node) + "\n"
+    if t == "Program":
+        return [node.block]
 
-    if isinstance(node, list):
-        s = indent + branch + f"List[{len(node)}]\n"
-        new_indent = indent + ("  " if is_last else "│ ")
-        for idx, item in enumerate(node):
-            s += dump_ast(item, new_indent, idx == len(node) - 1)
-        return s
+    if t == "Block":
+        return node.var_decls + [node.body]
 
-    name = type(node).__name__
-    s = indent + branch + name + "\n"
-    new_indent = indent + ("  " if is_last else "│ ")
+    if t == "CompoundStmt":
+        return node.statements
 
-    if is_dataclass(node):
-        fs = fields(node)
-        for idx, f in enumerate(fs):
-            val = getattr(node, f.name)
-            last_field = idx == len(fs) - 1
-            s += new_indent + ("└─" if last_field else "├─") + f"{f.name}\n"
-            s += dump_ast(val, new_indent + ("  " if last_field else "│ "), True)
-        return s
+    if t == "Assign":
+        return [node.target, node.value]
 
-    return s + new_indent + "└─" + repr(node) + "\n"
+    if t == "If":
+        c = [node.cond, node.then_branch]
+        if node.else_branch:
+            c.append(node.else_branch)
+        return c
+
+    if t == "While":
+        return [node.cond, node.body]
+
+    if t == "For":
+        return [node.var, node.start, node.end, node.body]
+
+    if t == "BinOp":
+        return [node.left, node.right]
+
+    if t == "UnOp":
+        return [node.operand]
+
+    return []
+
+
+def dump_ast(node: Any, indent: str = "", last: bool = True) -> str:
+    branch = "└─" if last else "├─"
+
+    s = indent + branch + node_label(node) + "\n"
+
+    new_indent = indent + ("  " if last else "│ ")
+
+    ch = children(node)
+
+    for i, c in enumerate(ch):
+        s += dump_ast(c, new_indent, i == len(ch) - 1)
+
+    return s
