@@ -8,7 +8,7 @@ def main() -> None:
     files = sorted(base.glob("*.pas"))
 
     if not files:
-        print("No .pas files in samples/tests")
+        print("No .pas files in samples")
         return
 
     ok = 0
