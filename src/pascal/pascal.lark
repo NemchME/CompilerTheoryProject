@@ -1,0 +1,81 @@
+%import common.CNAME -> CNAME
+%import common.INT -> INT
+%import common.WS
+
+%ignore WS
+
+COMMENT_1: /\{[^}]*\}/
+COMMENT_2: /\/\/[^\n]*/
+COMMENT_3: /\(\*([\s\S]*?)\*\)/
+%ignore COMMENT_1
+%ignore COMMENT_2
+%ignore COMMENT_3
+
+CHAR: /'([^'\\]|\\.)'/
+IDENT: CNAME
+TYPE_NAME: "integer" | "char" | "boolean"
+FOR_DIR: "to" | "downto"
+BUILTIN_NAME: "read" | "readln" | "write" | "writeln"
+
+program: "program" IDENT ";" block "."
+block: var_section? compound_stmt
+var_section: "var" var_decl+
+var_decl: ident_list ":" TYPE_NAME ";"
+ident_list: IDENT ("," IDENT)*
+
+compound_stmt: "begin" stmt_list? "end"
+stmt_list: stmt (";" stmt)* ";"?
+
+?stmt: compound_stmt
+    | if_stmt
+    | while_stmt
+    | for_stmt
+    | break_stmt
+    | continue_stmt
+    | assign_stmt
+    | call_stmt
+
+if_stmt: "if" expr "then" stmt ("else" stmt)?
+while_stmt: "while" expr "do" stmt
+for_stmt: "for" IDENT ":=" expr FOR_DIR expr "do" stmt
+break_stmt: "break"
+continue_stmt: "continue"
+assign_stmt: IDENT ":=" expr
+call_stmt: call
+
+?expr: or_expr
+?or_expr: and_expr
+    | or_expr "or" and_expr   -> bin_or
+?and_expr: rel_expr
+    | and_expr "and" rel_expr -> bin_and
+?rel_expr: add_expr
+    | add_expr "=" add_expr   -> bin_eq
+    | add_expr "<>" add_expr  -> bin_ne
+    | add_expr "<=" add_expr  -> bin_le
+    | add_expr "<" add_expr   -> bin_lt
+    | add_expr ">=" add_expr  -> bin_ge
+    | add_expr ">" add_expr   -> bin_gt
+?add_expr: mul_expr
+    | add_expr "+" mul_expr   -> bin_add
+    | add_expr "-" mul_expr   -> bin_sub
+?mul_expr: unary_expr
+    | mul_expr "*" unary_expr -> bin_mul
+    | mul_expr "/" unary_expr -> bin_float_div
+    | mul_expr "div" unary_expr -> bin_int_div
+    | mul_expr "mod" unary_expr -> bin_mod
+?unary_expr: primary
+    | "not" unary_expr        -> un_not
+    | "+" unary_expr          -> un_plus
+    | "-" unary_expr          -> un_minus
+
+?primary: INT                   -> int_lit
+    | CHAR                      -> char_lit
+    | "true"                   -> true_lit
+    | "false"                  -> false_lit
+    | call
+    | IDENT                     -> ident
+    | "(" expr ")"
+
+call: call_name "(" arg_list? ")"
+call_name: IDENT | BUILTIN_NAME
+arg_list: expr ("," expr)*
