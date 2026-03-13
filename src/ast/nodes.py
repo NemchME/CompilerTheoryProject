@@ -59,7 +59,7 @@ class BinOp(Expr):
 @dataclass
 class UnOp(Expr):
     op: UnaryOpKind
-    operand: Expr
+    expr: Expr
 
 
 @dataclass
@@ -72,11 +72,15 @@ class VarDecl(ASTNode):
 class CompoundStmt(Stmt):
     statements: List[Stmt]
 
+@dataclass
+class Call(Expr, Stmt):
+    func: Ident
+    args: list[Expr]
 
 @dataclass
 class Assign(Stmt):
-    target: Ident
-    value: Expr
+    ident: Ident
+    expr: Expr
 
 
 @dataclass
@@ -94,7 +98,7 @@ class While(Stmt):
 
 @dataclass
 class For(Stmt):
-    var: Ident
+    ident: Ident
     start: Expr
     direction: str
     end: Expr
