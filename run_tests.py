@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from src.pascal.parser import PascalParser, PascalParserError
+from src.semantics.analyzer import SemanticAnalyzer
+from src.semantics.errors import SemanticError
 
 
 def main() -> None:
@@ -8,7 +10,7 @@ def main() -> None:
     files = sorted(base.glob("*.pas"))
 
     if not files:
-        print("No .pas files in samples")
+        print("No .pas files in samples/tests")
         return
 
     ok = 0
@@ -17,10 +19,11 @@ def main() -> None:
     for path in files:
         text = path.read_text(encoding="utf-8")
         try:
-            PascalParser(text).parse_program()
+            program = PascalParser(text).parse_program()
+            SemanticAnalyzer().analyze(program)
             print(f"[OK]    {path.name}")
             ok += 1
-        except PascalParserError as e:
+        except (PascalParserError, SemanticError) as e:
             print(f"[ERROR] {path.name}")
             print(str(e))
             print("-" * 40)

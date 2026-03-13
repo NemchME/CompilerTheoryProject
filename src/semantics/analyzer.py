@@ -104,12 +104,13 @@ class SemanticAnalyzer:
                 if not isinstance(arg, ast.Ident):
                     raise TypeMismatchError("identifier", type(arg).__name__)
                 self.visit(arg)
-            return None
+            return "integer"
 
         for arg in node.args:
             self.visit(arg)
 
-        return None
+        node.inferred_type = "integer"
+        return "integer"
 
     def visit_Break(self, node: ast.Break):
         return None
