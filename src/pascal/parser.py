@@ -159,7 +159,6 @@ class ASTBuilder(Transformer):
         return ast.CompoundStmt(statements=[stmt])
 
 class PascalParser:
-    builtin_functions = {'read', 'readln', 'write', 'writeln'}
 
     def __init__(self, text: str):
         self.text = text

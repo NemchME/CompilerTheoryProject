@@ -114,18 +114,6 @@ class Break(Stmt):
 class Continue(Stmt):
     pass
 
-
-@dataclass
-class Write(Stmt):
-    expr: Optional[Expr]
-    newline: bool = False
-
-
-@dataclass
-class Read(Stmt):
-    target: Ident
-
-
 @dataclass
 class Block(ASTNode):
     var_decls: List[VarDecl]
