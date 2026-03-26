@@ -1,9 +1,10 @@
 from pathlib import Path
 
 from src.pascal.parser import PascalParser, PascalParserError
+from src.pascal.semantic import SemanticChecker, IdentScope, SemanticException
 
 
-def main() -> None:
+def main():
     base = Path("samples")
     files = sorted(base.glob("*.pas"))
 
@@ -16,17 +17,24 @@ def main() -> None:
 
     for path in files:
         text = path.read_text(encoding="utf-8")
+
         try:
-            PascalParser(text).parse_program()
+            program = PascalParser(text).parse_program()
+
+            scope = IdentScope()
+            checker = SemanticChecker()
+            checker.check(program, scope)
+
             print(f"[OK]    {path.name}")
             ok += 1
-        except PascalParserError as e:
+
+        except (PascalParserError, SemanticException) as e:
             print(f"[ERROR] {path.name}")
-            print(str(e))
+            print(f"  {e}")
             print("-" * 40)
             bad += 1
 
-    print(f"\nSummary: OK={ok}, ERROR={bad}, TOTAL={ok+bad}")
+    print(f"\nSummary: OK={ok}, ERROR={bad}, TOTAL={ok + bad}")
 
 
 if __name__ == "__main__":

@@ -124,3 +124,21 @@ class Block(ASTNode):
 class Program(ASTNode):
     name: str
     block: Block
+
+@dataclass
+class TypeConvert:
+    expr: object
+    target_type: object
+    node_type: object = None
+
+@dataclass
+class Func(ASTNode):
+    name: Ident
+    params: List[VarDecl]
+    return_type: str
+    body: CompoundStmt
+
+
+@dataclass
+class Return(Stmt):
+    expr: Optional[Expr]
