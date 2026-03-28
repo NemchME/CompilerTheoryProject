@@ -18,10 +18,14 @@ FOR_DIR: "to" | "downto"
 BUILTIN_NAME: "read" | "readln" | "write" | "writeln"
 
 program: "program" IDENT ";" block "."
-block: var_section? compound_stmt
+block: var_section? func_decl* compound_stmt
 var_section: "var" var_decl+
 var_decl: ident_list ":" TYPE_NAME ";"
 ident_list: IDENT ("," IDENT)*
+
+func_decl: "function" IDENT "(" params? ")" ":" TYPE_NAME ";" block ";"
+params: param (";" param | "," param)*
+param: ident_list ":" TYPE_NAME
 
 compound_stmt: "begin" stmt_list? "end"
 stmt_list: stmt (";" stmt)* ";"?
@@ -32,6 +36,7 @@ stmt_list: stmt (";" stmt)* ";"?
     | for_stmt
     | break_stmt
     | continue_stmt
+    | return_stmt
     | assign_stmt
     | call_stmt
 
@@ -40,6 +45,7 @@ while_stmt: "while" expr "do" stmt
 for_stmt: "for" IDENT ":=" expr FOR_DIR expr "do" stmt
 break_stmt: "break"
 continue_stmt: "continue"
+return_stmt: "return" expr?
 assign_stmt: IDENT ":=" expr
 call_stmt: call
 
