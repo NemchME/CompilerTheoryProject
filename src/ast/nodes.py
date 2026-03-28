@@ -1,11 +1,14 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 from enum import Enum
 
 
 class ASTNode:
-    pass
+    row: int | None = None
+    col: int | None = None
+    node_type = None
+    node_ident = None
 
 
 class Stmt(ASTNode):
@@ -117,7 +120,8 @@ class Continue(Stmt):
 @dataclass
 class Block(ASTNode):
     var_decls: List[VarDecl]
-    body: CompoundStmt
+    func_decls: List["Func"] = field(default_factory=list)
+    body: CompoundStmt = field(default_factory=lambda: CompoundStmt([]))
 
 
 @dataclass
@@ -126,8 +130,8 @@ class Program(ASTNode):
     block: Block
 
 @dataclass
-class TypeConvert:
-    expr: object
+class TypeConvertNode:
+    expr: Expr
     target_type: object
     node_type: object = None
 
@@ -136,7 +140,7 @@ class Func(ASTNode):
     name: Ident
     params: List[VarDecl]
     return_type: str
-    body: CompoundStmt
+    body: Block
 
 
 @dataclass
