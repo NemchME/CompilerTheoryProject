@@ -1,12 +1,13 @@
 from __future__ import annotations
 from pathlib import Path
-from lark import Lark, Transformer, UnexpectedInput
+from lark import Lark, Transformer, UnexpectedInput, Token
 
 from src.ast import nodes as ast
 
 
 class PascalParserError(Exception):
     pass
+
 
 class ASTBuilder(Transformer):
     binary_ops = {
@@ -32,124 +33,193 @@ class ASTBuilder(Transformer):
     }
 
     @staticmethod
-    def program(items):
-        return ast.Program(name=str(items[0]), block=items[1])
+    def _line_from(item):
+        if isinstance(item, Token):
+            return item.line, item.column
+        return getattr(item, 'row', None), getattr(item, 'col', None)
 
-    @staticmethod
-    def block(items):
-        if len(items) == 1:
-            return ast.Block(var_decls=[], body=items[0])
-        return ast.Block(var_decls=items[0], body=items[1])
+    def _set_pos_from(self, node, item):
+        row, col = self._line_from(item)
+        node.row = row
+        node.col = col
+        return node
 
-    @staticmethod
-    def var_section(items):
+    def program(self, items):
+        node = ast.Program(name=str(items[0]), block=items[1])
+        return self._set_pos_from(node, items[0])
+
+    def block(self, items):
+        var_decls = []
+        func_decls = []
+        body = ast.CompoundStmt([])
+        for item in items:
+            if isinstance(item, list) and item:
+                if isinstance(item[0], ast.VarDecl):
+                    var_decls = item
+                elif isinstance(item[0], ast.Func):
+                    func_decls = item
+            elif isinstance(item, ast.Func):
+                func_decls.append(item)
+            else:
+                body = item
+        node = ast.Block(var_decls=var_decls, func_decls=func_decls, body=body)
+        return self._set_pos_from(node, body if body else (var_decls[0] if var_decls else None))
+
+    def var_section(self, items):
         decls = []
         for item in items:
             decls.extend(item)
         return decls
 
-    @staticmethod
-    def var_decl(items):
+    def var_decl(self, items):
         names = items[0]
-        type_name = items[1]
-        return [ast.VarDecl(ident=ast.Ident(name=name), type_name=type_name) for name in names]
+        type_name = str(items[1])
+        result = []
+        for name in names:
+            ident = ast.Ident(name=name)
+            ident.row = getattr(name, 'line', None)
+            ident.col = getattr(name, 'column', None)
+            node = ast.VarDecl(ident=ident, type_name=type_name)
+            node.row = ident.row
+            node.col = ident.col
+            result.append(node)
+        return result
 
-    @staticmethod
-    def ident_list(items):
-        return [str(item) for item in items]
+    def ident_list(self, items):
+        return list(items)
 
-    @staticmethod
-    def type_name(items):
-        return str(items[0])
+    def func_decl(self, items):
+        name_token = items[0]
+        name = ast.Ident(name=str(name_token))
+        name.row = getattr(name_token, 'line', None)
+        name.col = getattr(name_token, 'column', None)
+        if len(items) == 4:
+            params, return_type, block = items[1], str(items[2]), items[3]
+        else:
+            params, return_type, block = [], str(items[1]), items[2]
+        node = ast.Func(name=name, params=params, return_type=return_type, block=block)
+        return self._set_pos_from(node, name_token)
 
-    @staticmethod
-    def compound_stmt(items):
-        if not items:
-            return ast.CompoundStmt(statements=[])
-        return items[0]
+    def params(self, items):
+        params = []
+        for item in items:
+            if isinstance(item, list):
+                params.extend(item)
+            else:
+                params.append(item)
+        return params
 
-    @staticmethod
-    def stmt_list(items):
-        return ast.CompoundStmt(statements=items)
+    def param(self, items):
+        names = items[0]
+        type_name = str(items[1])
+        result = []
+        for name in names:
+            ident = ast.Ident(name=str(name))
+            ident.row = getattr(name, 'line', None)
+            ident.col = getattr(name, 'column', None)
+            node = ast.VarDecl(ident=ident, type_name=type_name)
+            node.row = ident.row
+            node.col = ident.col
+            result.append(node)
+        return result
+
+    def compound_stmt(self, items):
+        if items:
+            return items[0]
+        node = ast.CompoundStmt(statements=[])
+        node.row = node.col = None
+        return node
+
+    def stmt_list(self, items):
+        node = ast.CompoundStmt(statements=items)
+        return self._set_pos_from(node, items[0] if items else None)
 
     def if_stmt(self, items):
         cond = items[0]
-        then_branch = self._to_compound(items[1])
-        else_branch = self._to_compound(items[2]) if len(items) == 3 else None
-        return ast.If(cond=cond, then_branch=then_branch, else_branch=else_branch)
+        node = ast.If(cond=cond, then_branch=self._to_compound(items[1]), else_branch=self._to_compound(items[2]) if len(items) == 3 else None)
+        return self._set_pos_from(node, cond)
 
     def while_stmt(self, items):
-        return ast.While(cond=items[0], body=self._to_compound(items[1]))
+        node = ast.While(cond=items[0], body=self._to_compound(items[1]))
+        return self._set_pos_from(node, items[0])
 
     def for_stmt(self, items):
-        return ast.For(
-            ident=ast.Ident(name=str(items[0])),
-            start=items[1],
-            direction=str(items[2]),
-            end=items[3],
-            body=self._to_compound(items[4]),
-        )
+        ident_token = items[0]
+        ident = ast.Ident(name=str(ident_token))
+        ident.row = getattr(ident_token, 'line', None)
+        ident.col = getattr(ident_token, 'column', None)
+        node = ast.For(ident=ident, start=items[1], direction=str(items[2]), end=items[3], body=self._to_compound(items[4]))
+        return self._set_pos_from(node, ident)
 
-    @staticmethod
-    def for_dir(items):
-        return str(items[0])
-
-    @staticmethod
-    def break_stmt(_):
+    def break_stmt(self, _):
         return ast.Break()
 
-    @staticmethod
-    def continue_stmt(_):
+    def continue_stmt(self, _):
         return ast.Continue()
 
-    @staticmethod
-    def assign_stmt(items):
-        return ast.Assign(ident=ast.Ident(name=str(items[0])), expr=items[1])
+    def return_stmt(self, items):
+        node = ast.Return(expr=items[0] if items else None)
+        return self._set_pos_from(node, items[0] if items else None)
 
-    @staticmethod
-    def call_stmt(items):
+    def assign_stmt(self, items):
+        ident_token = items[0]
+        ident = ast.Ident(name=str(ident_token))
+        ident.row = getattr(ident_token, 'line', None)
+        ident.col = getattr(ident_token, 'column', None)
+        node = ast.Assign(ident=ident, expr=items[1])
+        return self._set_pos_from(node, ident)
+
+    def call_stmt(self, items):
         return items[0]
 
-    @staticmethod
-    def call(items):
-        func = ast.Ident(name=str(items[0]))
-        args = items[1] if len(items) == 2 else []
-        return ast.Call(func=func, args=args)
+    def call(self, items):
+        token = items[0]
+        func = ast.Ident(name=str(token))
+        func.row = getattr(token, 'line', None)
+        func.col = getattr(token, 'column', None)
+        node = ast.Call(func=func, args=items[1] if len(items) == 2 else [])
+        return self._set_pos_from(node, func)
 
-    @staticmethod
-    def call_name(items):
-        return str(items[0])
+    def call_name(self, items):
+        return items[0]
 
-    @staticmethod
-    def arg_list(items):
+    def arg_list(self, items):
         return list(items)
 
-    @staticmethod
-    def int_lit(items):
-        return ast.Literal(value=int(items[0]))
+    def int_lit(self, items):
+        token = items[0]
+        node = ast.Literal(value=int(token))
+        return self._set_pos_from(node, token)
 
-    @staticmethod
-    def char_lit(items):
-        value = str(items[0])[1:-1]
-        return ast.Literal(value=value)
+    def char_lit(self, items):
+        token = items[0]
+        node = ast.Literal(value=str(token)[1:-1])
+        return self._set_pos_from(node, token)
 
-    @staticmethod
-    def true_lit(_):
+    def true_lit(self, _):
         return ast.Literal(value=True)
 
-    @staticmethod
-    def false_lit(_):
+    def false_lit(self, _):
         return ast.Literal(value=False)
 
-    @staticmethod
-    def ident(items):
-        return ast.Ident(name=str(items[0]))
+    def ident(self, items):
+        token = items[0]
+        node = ast.Ident(name=str(token))
+        return self._set_pos_from(node, token)
+
+    def _make_bin(self, items, op):
+        node = ast.BinOp(left=items[0], op=op, right=items[1])
+        return self._set_pos_from(node, items[0])
+
+    def _make_un(self, items, op):
+        node = ast.UnOp(op=op, expr=items[0])
+        return self._set_pos_from(node, items[0])
 
     def __getattr__(self, name):
         if name in self.binary_ops:
-            return lambda items: ast.BinOp(left=items[0], op=self.binary_ops[name], right=items[1])
+            return lambda items: self._make_bin(items, self.binary_ops[name])
         if name in self.unary_ops:
-            return lambda items: ast.UnOp(op=self.unary_ops[name], expr=items[0])
+            return lambda items: self._make_un(items, self.unary_ops[name])
         raise AttributeError(name)
 
     @staticmethod
@@ -158,13 +228,13 @@ class ASTBuilder(Transformer):
             return stmt
         return ast.CompoundStmt(statements=[stmt])
 
-class PascalParser:
 
+class PascalParser:
     def __init__(self, text: str):
         self.text = text
         grammar_path = Path(__file__).with_name("pascal.lark")
         grammar = grammar_path.read_text(encoding="utf-8")
-        self.parser = Lark(grammar, start="program", parser="lalr")
+        self.parser = Lark(grammar, start="program", parser="lalr", propagate_positions=True)
 
     def parse_program(self) -> ast.Program:
         try:
