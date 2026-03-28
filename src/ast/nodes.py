@@ -140,7 +140,7 @@ class Func(ASTNode):
     name: Ident
     params: List[VarDecl]
     return_type: str
-    body: Block
+    block: Block
 
 
 @dataclass
