@@ -130,7 +130,7 @@ class Program(ASTNode):
     block: Block
 
 @dataclass
-class TypeConvertNode:
+class TypeConvertNode(Expr):
     expr: Expr
     target_type: object
     node_type: object = None

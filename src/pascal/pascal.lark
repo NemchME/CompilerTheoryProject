@@ -13,7 +13,7 @@ COMMENT_3: /\(\*([\s\S]*?)\*\)/
 
 CHAR: /'([^'\\]|\\.)'/
 IDENT: CNAME
-TYPE_NAME: "integer" | "char" | "boolean"
+TYPE_NAME: "integer" | "char" | "boolean" | "double"
 FOR_DIR: "to" | "downto"
 BUILTIN_NAME: "read" | "readln" | "write" | "writeln"
 

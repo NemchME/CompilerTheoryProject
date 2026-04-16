@@ -3,8 +3,10 @@ var
   x: integer;
 
 function f(a: integer): integer;
+var x: double;
 begin
-  return a + 1;
+  x :=  a + 1;
+  return x;
 end;
 
 begin

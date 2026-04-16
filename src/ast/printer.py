@@ -6,7 +6,7 @@ from src.ast import nodes as ast
 def _type_info(node: Any) -> str:
     parts = []
     if getattr(node, "node_type", None) is not None:
-        parts.append(f"type={node.node_type}")
+        parts.append(f"type={node.node_type.base_type.value}")
     if getattr(node, "node_ident", None) is not None:
         parts.append(f"ident={node.node_ident.name}")
     if getattr(node, "row", None) is not None:
@@ -49,7 +49,7 @@ def _label(node: Any) -> str:
     if isinstance(node, ast.UnOp):
         return f"UnOp {node.op.value}"
     if isinstance(node, ast.TypeConvertNode):
-        return f"TypeConvert -> {node.target_type}"
+        return f"TypeConvert -> {node.target_type.base_type.value}"
     if isinstance(node, ast.Ident):
         return f"Ident {node.name}"
     if isinstance(node, ast.Literal):
