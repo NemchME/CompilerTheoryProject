@@ -122,10 +122,12 @@ class SemanticChecker:
         raise SemanticException(f"Неизвестный тип {name}")
 
     def visit_Literal(self, node, scope):
-        if isinstance(node.value, int):
-            node.node_type = INT
-        elif isinstance(node.value, bool):
+        if isinstance(node.value, bool):
             node.node_type = BOOL
+        elif isinstance(node.value, int):
+            node.node_type = INT
+        elif isinstance(node.value, float):
+            node.node_type = FLOAT
         elif isinstance(node.value, str):
             node.node_type = STR
 
@@ -139,18 +141,25 @@ class SemanticChecker:
     def visit_VarDecl(self, node, scope):
         type_ = self._type_from_name(node.type_name)
 
-        if scope.current_func:
-            scope_type = "variable"
-            index = len([i for i in scope.idents.values() if i.scope_type == "variable"])
-        else:
-            scope_type = "global"
-            index = 0
+        idents = node.ident if isinstance(node.ident, list) else [node.ident]
 
-        desc = scope.add_ident(IdentDesc(node.ident.name, type_, scope_type, index))
+        for ident_node in idents:
+            if ident_node.name in scope.idents:
+                raise SemanticException(f"Повторное объявление {ident_node.name}")
+
+            if scope.current_func:
+                scope_type = "variable"
+                index = len([i for i in scope.idents.values() if i.scope_type == "variable"])
+            else:
+                scope_type = "global"
+                index = 0
+
+            desc = scope.add_ident(IdentDesc(ident_node.name, type_, scope_type, index))
+
+            ident_node.node_type = type_
+            ident_node.node_ident = desc
 
         node.node_type = type_
-        node.ident.node_type = type_
-        node.ident.node_ident = desc
 
     def visit_Block(self, node, scope):
         local_scope = IdentScope(scope, current_func=scope.current_func)
@@ -163,12 +172,14 @@ class SemanticChecker:
             func.node_ident = desc
 
         for decl in node.var_decls:
-            self.check(decl, local_scope)
+            self.visit_VarDecl(decl, local_scope)
 
         for func in node.func_decls:
             self.check(func, local_scope)
 
         self.check(node.body, local_scope)
+
+        return  # ВАЖНО
 
     def visit_Func(self, node, scope):
         func_scope = IdentScope(scope, current_func=node)
@@ -215,6 +226,26 @@ class SemanticChecker:
                 )
 
         node.node_type = ident.type.return_type
+
+    def visit_Cast(self, node, scope):
+        self.check(node.expr, scope)
+
+        target_type = self._type_from_name(node.type_name)
+        expr_type = node.expr.node_type
+
+        if expr_type.base_type == target_type.base_type:
+            node.node_type = target_type
+            return
+
+        converted = self._try_convert(node.expr, expr_type, target_type, scope)
+        if converted:
+            node.expr = converted
+            node.node_type = target_type
+            return
+
+        raise SemanticException(
+            f"Нельзя привести {expr_type.base_type.value} к {target_type.base_type.value}"
+        )
 
     def visit_Assign(self, node, scope):
         self.check(node.ident, scope)

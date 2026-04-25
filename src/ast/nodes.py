@@ -64,6 +64,10 @@ class UnOp(Expr):
     op: UnaryOpKind
     expr: Expr
 
+@dataclass
+class Cast(Expr):
+    type_name: str
+    expr: Expr
 
 @dataclass
 class VarDecl(ASTNode):
