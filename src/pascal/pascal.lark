@@ -12,8 +12,10 @@ COMMENT_3: /\(\*([\s\S]*?)\*\)/
 %ignore COMMENT_3
 
 CHAR: /'([^'\\]|\\.)'/
+REAL: /[0-9]+\.[0-9]+/
+
+TYPE_NAME.2: "integer" | "char" | "boolean" | "double"
 IDENT: CNAME
-TYPE_NAME: "integer" | "char" | "boolean"
 FOR_DIR: "to" | "downto"
 BUILTIN_NAME: "read" | "readln" | "write" | "writeln"
 
@@ -74,13 +76,15 @@ call_stmt: call
     | "+" unary_expr          -> un_plus
     | "-" unary_expr          -> un_minus
 
-?primary: INT                   -> int_lit
-    | CHAR                      -> char_lit
-    | "true"                   -> true_lit
-    | "false"                  -> false_lit
-    | call
-    | IDENT                     -> ident
-    | "(" expr ")"
+?primary: REAL                 -> real_lit
+        | INT                  -> int_lit
+        | CHAR                 -> char_lit
+        | "true"               -> true_lit
+        | "false"              -> false_lit
+        | TYPE_NAME "(" expr ")"   -> cast
+        | call
+        | IDENT                -> ident
+        | "(" expr ")"
 
 call: call_name "(" arg_list? ")"
 call_name: IDENT | BUILTIN_NAME

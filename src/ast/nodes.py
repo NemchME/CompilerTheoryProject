@@ -64,6 +64,10 @@ class UnOp(Expr):
     op: UnaryOpKind
     expr: Expr
 
+@dataclass
+class Cast(Expr):
+    type_name: str
+    expr: Expr
 
 @dataclass
 class VarDecl(ASTNode):
@@ -130,7 +134,7 @@ class Program(ASTNode):
     block: Block
 
 @dataclass
-class TypeConvertNode:
+class TypeConvertNode(Expr):
     expr: Expr
     target_type: object
     node_type: object = None

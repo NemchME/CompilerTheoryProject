@@ -215,6 +215,35 @@ class ASTBuilder(Transformer):
         node = ast.UnOp(op=op, expr=items[0])
         return self._set_pos_from(node, items[0])
 
+    def int_lit(self, items):
+        token = items[0]
+        node = ast.Literal(value=int(token))
+        return self._set_pos_from(node, token)
+
+    def real_lit(self, items):
+        token = items[0]
+        node = ast.Literal(value=float(token))
+        return self._set_pos_from(node, token)
+
+    def char_lit(self, items):
+        token = items[0]
+        node = ast.Literal(value=str(token)[1:-1])
+        return self._set_pos_from(node, token)
+
+    def true_lit(self, _):
+        return ast.Literal(value=True)
+
+    def false_lit(self, _):
+        return ast.Literal(value=False)
+
+    def cast(self, items):
+        token = items[0]
+        type_name = token.value if hasattr(token, "value") else str(token)
+        expr = items[1]
+        node = ast.Cast(type_name, expr)
+        return self._set_pos_from(node, token)
+
+
     def __getattr__(self, name):
         if name in self.binary_ops:
             return lambda items: self._make_bin(items, self.binary_ops[name])
