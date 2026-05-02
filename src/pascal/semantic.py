@@ -45,6 +45,17 @@ VOID = TypeDesc(BaseType.VOID)
 
 
 class IdentDesc:
+    _counters: dict = {}
+
+    @classmethod
+    def _next_num(cls, category: str) -> int:
+        cls._counters[category] = cls._counters.get(category, 0) + 1
+        return cls._counters[category]
+
+    @classmethod
+    def reset_counters(cls):
+        cls._counters.clear()
+
     def __init__(self, name, type_, scope_type="global"):
         self.name = name
         self.type = type_
@@ -52,10 +63,18 @@ class IdentDesc:
         self.built_in = False
         self.value = None
         self.func_node = None
+        self.num = IdentDesc._next_num(scope_type) if not self.built_in else 0
 
     def __str__(self):
-        extra = ", built-in" if self.built_in else ""
-        return f"{self.name}: {self.type} [{self.scope_type}{extra}]"
+        if self.built_in:
+            return f"{self.name}: {self.type} [built-in]"
+        category_label = {
+            "global": "глобальная",
+            "local":  "локальная",
+            "param":  "параметр",
+            "func":   "функция",
+        }.get(self.scope_type, self.scope_type)
+        return f"{self.name}: {self.type} [{category_label} #{self.num}]"
 
 
 class IdentScope:
@@ -105,6 +124,7 @@ class SemanticChecker:
     def check(self, node, scope: IdentScope):
         if self.global_scope is None:
             self.global_scope = scope
+            IdentDesc.reset_counters()
             self._add_builtins(scope)
         method = f"visit_{type(node).__name__}"
         visitor = getattr(self, method, self.generic_visit)
@@ -131,12 +151,24 @@ class SemanticChecker:
 
     def _add_builtins(self, scope: IdentScope):
         for name in ("write", "writeln"):
-            ident = IdentDesc(name, TypeDesc(return_type=VOID, params=[]), "global")
+            ident = IdentDesc.__new__(IdentDesc)
+            ident.name = name
+            ident.type = TypeDesc(return_type=VOID, params=[])
+            ident.scope_type = "global"
             ident.built_in = True
+            ident.value = None
+            ident.func_node = None
+            ident.num = 0
             scope.add_ident(ident)
         for name in ("read", "readln"):
-            ident = IdentDesc(name, TypeDesc(return_type=VOID, params=[]), "global")
+            ident = IdentDesc.__new__(IdentDesc)
+            ident.name = name
+            ident.type = TypeDesc(return_type=VOID, params=[])
+            ident.scope_type = "global"
             ident.built_in = True
+            ident.value = None
+            ident.func_node = None
+            ident.num = 0
             scope.add_ident(ident)
 
     def visit_Program(self, node: ast.Program, scope):
@@ -160,7 +192,7 @@ class SemanticChecker:
 
     def visit_VarDecl(self, node: ast.VarDecl, scope):
         type_ = self._type_from_name(node.type_name)
-        scope_type = "local" if scope.parent else "global"
+        scope_type = "local" if scope.current_func else "global"
         desc = scope.add_ident(IdentDesc(node.ident.name, type_, scope_type))
         node.node_type = type_
         node.node_ident = desc
@@ -256,7 +288,7 @@ class SemanticChecker:
     def _register_func(self, node: ast.Func, scope: IdentScope):
         ret_type = self._type_from_name(node.return_type)
         param_types = [self._type_from_name(param.type_name) for param in node.params]
-        ident = IdentDesc(node.name.name, TypeDesc(return_type=ret_type, params=param_types), "global")
+        ident = IdentDesc(node.name.name, TypeDesc(return_type=ret_type, params=param_types), "func")
         ident.func_node = node
         scope.add_ident(ident)
         node.name.node_ident = ident
@@ -268,9 +300,13 @@ class SemanticChecker:
         ret_type = self._type_from_name(node.return_type)
         func_scope = IdentScope(scope, current_func=node)
         for param in node.params:
-            self.check(param, func_scope)
-            if param.node_ident:
-                param.node_ident.scope_type = "param"
+            type_ = self._type_from_name(param.type_name)
+            desc = IdentDesc(param.ident.name, type_, "param")
+            func_scope.add_ident(desc)
+            param.node_type = type_
+            param.node_ident = desc
+            param.ident.node_type = type_
+            param.ident.node_ident = desc
         self.check(node.block, func_scope)
         has_return = self._block_has_return(node.block)
         if ret_type != VOID and not has_return:

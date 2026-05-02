@@ -8,7 +8,18 @@ def _type_info(node: Any) -> str:
     if getattr(node, "node_type", None) is not None:
         parts.append(f"type={node.node_type}")
     if getattr(node, "node_ident", None) is not None:
-        parts.append(f"ident={node.node_ident.name}")
+        ident = node.node_ident
+        if getattr(ident, "built_in", False):
+            parts.append(f"ident={ident.name} [built-in]")
+        else:
+            category_label = {
+                "global": "глобальная",
+                "local":  "локальная",
+                "param":  "параметр",
+                "func":   "функция",
+            }.get(getattr(ident, "scope_type", ""), ident.scope_type if hasattr(ident, "scope_type") else "")
+            num = getattr(ident, "num", "?")
+            parts.append(f"ident={ident.name} [{category_label} #{num}]")
     if getattr(node, "row", None) is not None:
         parts.append(f"pos={node.row}:{node.col}")
     return " [" + ", ".join(parts) + "]" if parts else ""
@@ -24,6 +35,9 @@ def _label(node: Any) -> str:
     if isinstance(node, ast.CompoundStmt):
         return "CompoundStmt"
     if isinstance(node, ast.VarDecl):
+        scope = getattr(node, "node_ident", None)
+        if scope is not None and getattr(scope, "scope_type", "") == "param":
+            return f"Param {node.ident.name}: {node.type_name}"
         return f"VarDecl {node.ident.name}: {node.type_name}"
     if isinstance(node, ast.Func):
         params = ", ".join(f"{p.ident.name}: {p.type_name}" for p in node.params)
