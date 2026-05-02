@@ -5,8 +5,9 @@ from src.ast import nodes as ast
 
 def _type_info(node: Any) -> str:
     parts = []
-    if getattr(node, "node_type", None) is not None:
-        parts.append(f"type={node.node_type.base_type.value}")
+    nt = getattr(node, "node_type", None)
+    if nt is not None:
+        parts.append(f"type={nt}")
     if getattr(node, "node_ident", None) is not None:
         ident = node.node_ident
         if getattr(ident, "built_in", False):
@@ -62,8 +63,10 @@ def _label(node: Any) -> str:
         return f"BinOp {node.op.value}"
     if isinstance(node, ast.UnOp):
         return f"UnOp {node.op.value}"
+    if isinstance(node, ast.Cast):
+        return f"Cast -> {node.type_name}"
     if isinstance(node, ast.TypeConvertNode):
-        return f"TypeConvert -> {node.target_type.base_type.value}"
+        return f"TypeConvert -> {node.target_type}"
     if isinstance(node, ast.Ident):
         return f"Ident {node.name}"
     if isinstance(node, ast.Literal):
@@ -104,6 +107,8 @@ def _children(node: Any) -> list[Any]:
     if isinstance(node, ast.BinOp):
         return [node.left, node.right]
     if isinstance(node, ast.UnOp):
+        return [node.expr]
+    if isinstance(node, ast.Cast):
         return [node.expr]
     if isinstance(node, ast.TypeConvertNode):
         return [node.expr]

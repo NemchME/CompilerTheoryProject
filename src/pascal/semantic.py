@@ -8,6 +8,7 @@ class BaseType(Enum):
     BOOL = "bool"
     STR = "string"
     VOID = "void"
+    DOUBLE = "double"
 
     def __str__(self):
         return self.value
@@ -42,6 +43,7 @@ INT = TypeDesc(BaseType.INT)
 BOOL = TypeDesc(BaseType.BOOL)
 STR = TypeDesc(BaseType.STR)
 VOID = TypeDesc(BaseType.VOID)
+DOUBLE = TypeDesc(BaseType.DOUBLE)
 
 
 class IdentDesc:
@@ -147,6 +149,8 @@ class SemanticChecker:
             return BOOL
         if name == "char":
             return STR
+        if name == "double":
+            return DOUBLE
         raise SemanticException(f"Неизвестный тип {name}")
 
     def _add_builtins(self, scope: IdentScope):
@@ -178,6 +182,8 @@ class SemanticChecker:
     def visit_Literal(self, node: ast.Literal, scope):
         if isinstance(node.value, bool):
             node.node_type = BOOL
+        elif isinstance(node.value, float):
+            node.node_type = DOUBLE
         elif isinstance(node.value, int):
             node.node_type = INT
         elif isinstance(node.value, str):
@@ -229,8 +235,12 @@ class SemanticChecker:
         if op in {ast.BinaryOpKind.ADD, ast.BinaryOpKind.SUB, ast.BinaryOpKind.MUL, ast.BinaryOpKind.INT_DIV, ast.BinaryOpKind.MOD, ast.BinaryOpKind.FLOAT_DIV}:
             if left == right and left == INT:
                 node.node_type = INT
+            elif left == right and left == DOUBLE:
+                node.node_type = DOUBLE
+            elif op == ast.BinaryOpKind.FLOAT_DIV and {left, right} <= {INT, DOUBLE}:
+                node.node_type = DOUBLE
             else:
-                raise SemanticException("Арифметика требует integer")
+                raise SemanticException("Арифметика требует integer или double")
         elif op in {ast.BinaryOpKind.EQ, ast.BinaryOpKind.NE, ast.BinaryOpKind.LT, ast.BinaryOpKind.LE, ast.BinaryOpKind.GT, ast.BinaryOpKind.GE}:
             if left == right:
                 node.node_type = BOOL
@@ -328,6 +338,11 @@ class SemanticChecker:
                 return True
         return False
 
+    def visit_Cast(self, node: ast.Cast, scope):
+        self.check(node.expr, scope)
+        target = self._type_from_name(node.type_name)
+        node.node_type = target
+
     def visit_Return(self, node: ast.Return, scope):
         if scope.current_func is None:
             raise SemanticException("return можно использовать только внутри функции")
@@ -407,6 +422,8 @@ class SemanticChecker:
             return False
         if type_name == "char":
             return ''
+        if type_name == "double":
+            return 0.0
         return None
 
     def _exec_block(self, block: ast.Block, frame):
@@ -517,6 +534,9 @@ class SemanticChecker:
                 return left > right
             if op == ast.BinaryOpKind.GE:
                 return left >= right
+        if isinstance(node, ast.Cast):
+            value = self._eval_expr(node.expr, frame)
+            return self._convert_value(value, self._type_from_name(node.type_name))
         if isinstance(node, ast.Call):
             return self._eval_call(node, frame)
         raise SemanticException(f"Не умею вычислять {type(node).__name__}")
@@ -526,6 +546,8 @@ class SemanticChecker:
             return int(value)
         if target_type == BOOL:
             return bool(value)
+        if target_type == DOUBLE:
+            return float(value)
         if target_type == STR:
             text = str(value)
             return text[:1] if text else ''
