@@ -29,7 +29,7 @@ def _class_name(path: Path) -> str:
 def run_tests(verbose: bool = False, do_run: bool = False):
     OUT_DIR.mkdir(exist_ok=True)
 
-    jasmin_candidates = [Path("jasmin.jar"), Path("tools/jasmin.jar"), Path.home() / "jasmin.jar"]
+    jasmin_candidates = [Path("jasmin-2.4/jasmin.jar"), Path("tools/jasmin.jar"), Path.home() / "jasmin.jar"]
     jasmin_jar = next((p for p in jasmin_candidates if p.exists()), None)
 
     samples = sorted(SAMPLES_DIR.glob("*.pas"))

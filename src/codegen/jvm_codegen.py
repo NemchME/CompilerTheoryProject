@@ -5,6 +5,7 @@ from src.pascal.semantic import (
     BaseType, TypeDesc, INT, BOOL, STR, VOID, DOUBLE,
 )
 
+
 def _jvm_type(type_desc: TypeDesc | None) -> str:
     if type_desc is None:
         return "V"
@@ -24,14 +25,6 @@ def _jvm_type(type_desc: TypeDesc | None) -> str:
     return "I"
 
 
-def _is_double_type(type_desc: TypeDesc | None) -> bool:
-    if type_desc is None:
-        return False
-    if hasattr(type_desc, 'base_type') and type_desc.base_type is not None:
-        return False
-    return getattr(type_desc, '_is_double', False)
-
-
 def _pascal_type_to_jvm_field(type_name: str) -> str:
     mapping = {
         "integer": "I",
@@ -40,14 +33,6 @@ def _pascal_type_to_jvm_field(type_name: str) -> str:
         "double":  "D",
     }
     return mapping.get(type_name, "I")
-
-
-def _pascal_type_is_double(type_name: str) -> bool:
-    return type_name == "double"
-
-
-def _pascal_type_is_string(type_name: str) -> bool:
-    return type_name == "char"
 
 
 def _node_is_double(node: ast.ASTNode) -> bool:
@@ -67,6 +52,7 @@ def _node_is_string(node: ast.ASTNode) -> bool:
         return t == STR
     return False
 
+
 class _LabelCounter:
     def __init__(self):
         self._n = 0
@@ -75,8 +61,8 @@ class _LabelCounter:
         self._n += 1
         return f"{prefix}{self._n}"
 
-class _LocalVarTable:
 
+class _LocalVarTable:
     def __init__(self, start_slot: int = 0):
         self._table: dict[str, tuple[int, str]] = {}
         self._next_slot = start_slot
@@ -96,8 +82,8 @@ class _LocalVarTable:
     def has(self, name: str) -> bool:
         return name in self._table
 
-class JVMCodeGen:
 
+class JVMCodeGen:
     def __init__(self, class_name: str = "Program"):
         self._class_name = class_name
         self._lines: list[str] = []
@@ -107,87 +93,71 @@ class JVMCodeGen:
         self._globals: set[str] = set()
         self._global_types: dict[str, str] = {}
         self._in_function = False
-        self._scanner_used = False
 
     def generate(self, program: ast.Program) -> str:
         self._lines = []
         self._labels = _LabelCounter()
-
         self._collect_globals(program.block)
-
-        self._emit_header(program.name)
-        self._emit_global_fields(program.block)
-
+        self._emit_class_header(program.name)
+        self._emit_all_fields(program.block)
+        self._emit_clinit()
         for func in program.block.func_decls:
             self._emit_function(func)
-
         self._emit_main(program.block)
-
         return "\n".join(self._lines) + "\n"
-
 
     def _collect_globals(self, block: ast.Block):
         for decl in block.var_decls:
             self._globals.add(decl.ident.name)
             self._global_types[decl.ident.name] = decl.type_name
 
-    def _emit_header(self, program_name: str):
+    def _emit_class_header(self, program_name: str):
         cn = self._class_name
         self._emit(f".class public {cn}")
         self._emit(f".super java/lang/Object")
         self._emit("")
 
-        self._emit(f".field private static _scanner Ljava/util/Scanner;")
+    def _emit_all_fields(self, block: ast.Block):
+        self._emit(f".field static _scanner Ljava/util/Scanner;")
+        for decl in block.var_decls:
+            jvm_t = _pascal_type_to_jvm_field(decl.type_name)
+            self._emit(f".field static {decl.ident.name} {jvm_t}")
         self._emit("")
 
+    def _emit_clinit(self):
+        cn = self._class_name
         self._emit(".method static <clinit>()V")
         self._emit("    .limit stack 3")
         self._emit("    .limit locals 0")
         self._emit("    new java/util/Scanner")
         self._emit("    dup")
         self._emit("    getstatic java/lang/System/in Ljava/io/InputStream;")
-        self._emit("    invokespecial java/util/Scanner/<init>(Ljava/io/InputStream;)V")
+        self._emit(f"    invokespecial java/util/Scanner/<init>(Ljava/io/InputStream;)V")
         self._emit(f"    putstatic {cn}/_scanner Ljava/util/Scanner;")
         self._emit("    return")
         self._emit(".end method")
         self._emit("")
-
-    def _emit_global_fields(self, block: ast.Block):
-        for decl in block.var_decls:
-            jvm_t = _pascal_type_to_jvm_field(decl.type_name)
-            self._emit(f".field private static {decl.ident.name} {jvm_t}")
-        if block.var_decls:
-            self._emit("")
 
     def _emit_function(self, func: ast.Func):
         self._in_function = True
         ret_jvm = _pascal_type_to_jvm_field(func.return_type)
         params_jvm = "".join(_pascal_type_to_jvm_field(p.type_name) for p in func.params)
         descriptor = f"({params_jvm}){ret_jvm}"
-
         self._emit(f".method public static {func.name.name}{descriptor}")
         self._emit(f"    .limit stack 16")
-
         lv = _LocalVarTable(start_slot=0)
         for param in func.params:
             lv.declare(param.ident.name, param.type_name)
         for decl in func.block.var_decls:
             lv.declare(decl.ident.name, decl.type_name)
-
-        total_locals = lv._next_slot
-        self._emit(f"    .limit locals {max(total_locals, 1)}")
-
+        self._emit(f"    .limit locals {max(lv._next_slot + 16, 1)}")
         self._locals = lv
-
         for decl in func.block.var_decls:
             self._emit_default_value(decl.type_name)
             self._emit_store(lv.slot(decl.ident.name), decl.type_name)
-
         self._emit_compound(func.block.body)
-
         self._emit_default_value(func.return_type)
         self._emit_return_for_type(func.return_type)
-
         self._emit(".end method")
         self._emit("")
         self._in_function = False
@@ -196,23 +166,16 @@ class JVMCodeGen:
     def _emit_main(self, block: ast.Block):
         self._emit(".method public static main([Ljava/lang/String;)V")
         self._emit("    .limit stack 16")
-
         lv = _LocalVarTable(start_slot=1)
         for decl in block.var_decls:
             lv.declare(decl.ident.name, decl.type_name)
-
-        total_locals = lv._next_slot
-        self._emit(f"    .limit locals {max(total_locals, 2)}")
-
+        self._emit(f"    .limit locals {max(lv._next_slot + 16, 2)}")
         self._locals = lv
         self._in_function = False
-
         for decl in block.var_decls:
             self._emit_default_value(decl.type_name)
             self._emit_store(lv.slot(decl.ident.name), decl.type_name)
-
         self._emit_compound(block.body)
-
         self._emit("    return")
         self._emit(".end method")
 
@@ -235,8 +198,6 @@ class JVMCodeGen:
             self._emit_return(node)
         elif isinstance(node, ast.Call):
             self._emit_call_stmt(node)
-        else:
-            pass
 
     def _emit_compound(self, node: ast.CompoundStmt):
         for stmt in node.statements:
@@ -245,7 +206,6 @@ class JVMCodeGen:
     def _emit_assign(self, node: ast.Assign):
         self._emit_expr(node.expr)
         name = node.ident.name
-
         if self._locals and self._locals.has(name):
             type_name = self._locals.type_name(name)
             self._emit_store(self._locals.slot(name), type_name)
@@ -277,14 +237,12 @@ class JVMCodeGen:
         loop_start = self._labels.next("WHILE_START")
         loop_end = self._labels.next("WHILE_END")
         self._loop_stack.append((loop_end, loop_start))
-
         self._emit(f"{loop_start}:")
         self._emit_expr(node.cond)
         self._emit(f"    ifeq {loop_end}")
         self._emit_compound(node.body)
         self._emit(f"    goto {loop_start}")
         self._emit(f"{loop_end}:")
-
         self._loop_stack.pop()
 
     def _emit_for(self, node: ast.For):
@@ -292,25 +250,18 @@ class JVMCodeGen:
         loop_end = self._labels.next("FOR_END")
         loop_cont = self._labels.next("FOR_CONT")
         step = 1 if node.direction == "to" else -1
-
         self._emit_expr(node.start)
         name = node.ident.name
         type_name = "integer"
-
         if self._locals and self._locals.has(name):
             slot = self._locals.slot(name)
         else:
             slot = self._locals.declare(name, type_name) if self._locals else 2
-
         end_slot = self._locals.declare(f"__for_end_{loop_start}", type_name) if self._locals else slot + 1
-
         self._emit_store(slot, type_name)
-
         self._emit_expr(node.end)
         self._emit_store(end_slot, type_name)
-
         self._loop_stack.append((loop_end, loop_cont))
-
         self._emit(f"{loop_start}:")
         self._emit_load(slot, type_name)
         self._emit_load(end_slot, type_name)
@@ -318,9 +269,7 @@ class JVMCodeGen:
             self._emit(f"    if_icmpgt {loop_end}")
         else:
             self._emit(f"    if_icmplt {loop_end}")
-
         self._emit_compound(node.body)
-
         self._emit(f"{loop_cont}:")
         self._emit_load(slot, type_name)
         self._emit(f"    ldc {step}")
@@ -328,7 +277,6 @@ class JVMCodeGen:
         self._emit_store(slot, type_name)
         self._emit(f"    goto {loop_start}")
         self._emit(f"{loop_end}:")
-
         self._loop_stack.pop()
 
     def _emit_break(self):
@@ -364,7 +312,7 @@ class JVMCodeGen:
             self._emit_call_expr(node)
             ret_type = getattr(node, 'node_type', None)
             if ret_type is not None and ret_type != VOID:
-                if _node_is_double(node) or (isinstance(ret_type, TypeDesc) and getattr(ret_type, '_is_double', False)):
+                if _node_is_double(node):
                     self._emit("    pop2")
                 else:
                     self._emit("    pop")
@@ -379,8 +327,6 @@ class JVMCodeGen:
                 self._emit(f"    invokevirtual java/io/PrintStream/{method}(Ljava/lang/String;)V")
             elif _node_is_double(arg):
                 self._emit(f"    invokevirtual java/io/PrintStream/{method}(D)V")
-            elif t == BOOL:
-                self._emit(f"    invokevirtual java/io/PrintStream/{method}(I)V")
             else:
                 self._emit(f"    invokevirtual java/io/PrintStream/{method}(I)V")
         if newline and not node.args:
@@ -392,14 +338,12 @@ class JVMCodeGen:
             if not isinstance(arg, ast.Ident):
                 continue
             name = arg.name
-
             if self._locals and self._locals.has(name):
                 type_name = self._locals.type_name(name)
             elif name in self._globals:
                 type_name = self._global_types[name]
             else:
                 continue
-
             self._emit(f"    getstatic {self._class_name}/_scanner Ljava/util/Scanner;")
             if type_name == "double":
                 self._emit("    invokevirtual java/util/Scanner/nextDouble()D")
@@ -407,10 +351,8 @@ class JVMCodeGen:
                 self._emit("    invokevirtual java/util/Scanner/next()Ljava/lang/String;")
             else:
                 self._emit("    invokevirtual java/util/Scanner/nextInt()I")
-
             if self._locals and self._locals.has(name):
-                slot = self._locals.slot(name)
-                self._emit_store(slot, type_name)
+                self._emit_store(self._locals.slot(name), type_name)
             else:
                 jvm_t = _pascal_type_to_jvm_field(type_name)
                 self._emit(f"    putstatic {self._class_name}/{name} {jvm_t}")
@@ -442,7 +384,6 @@ class JVMCodeGen:
         elif isinstance(v, int):
             self._emit_int_const(v)
         elif isinstance(v, str):
-            # char literal → String
             self._emit(f'    ldc "{v}"')
         else:
             self._emit("    iconst_0")
@@ -473,7 +414,6 @@ class JVMCodeGen:
     def _emit_binop(self, node: ast.BinOp):
         op = node.op
         is_double = _node_is_double(node.left) or _node_is_double(node.right)
-
         cmp_ops = {
             ast.BinaryOpKind.EQ, ast.BinaryOpKind.NE,
             ast.BinaryOpKind.LT, ast.BinaryOpKind.LE,
@@ -482,18 +422,15 @@ class JVMCodeGen:
         if op in cmp_ops:
             self._emit_comparison(node, is_double)
             return
-
         if op == ast.BinaryOpKind.AND:
             self._emit_logical_and(node)
             return
         if op == ast.BinaryOpKind.OR:
             self._emit_logical_or(node)
             return
-
         self._emit_expr(node.left)
         self._emit_expr(node.right)
         prefix = "d" if is_double else "i"
-
         if op == ast.BinaryOpKind.ADD:
             self._emit(f"    {prefix}add")
         elif op == ast.BinaryOpKind.SUB:
@@ -510,39 +447,29 @@ class JVMCodeGen:
     def _emit_comparison(self, node: ast.BinOp, is_double: bool):
         self._emit_expr(node.left)
         self._emit_expr(node.right)
-
         true_label = self._labels.next("CMP_TRUE")
         end_label = self._labels.next("CMP_END")
         op = node.op
-
         if is_double:
             self._emit("    dcmpg")
-            if op == ast.BinaryOpKind.EQ:
-                self._emit(f"    ifeq {true_label}")
-            elif op == ast.BinaryOpKind.NE:
-                self._emit(f"    ifne {true_label}")
-            elif op == ast.BinaryOpKind.LT:
-                self._emit(f"    iflt {true_label}")
-            elif op == ast.BinaryOpKind.LE:
-                self._emit(f"    ifle {true_label}")
-            elif op == ast.BinaryOpKind.GT:
-                self._emit(f"    ifgt {true_label}")
-            elif op == ast.BinaryOpKind.GE:
-                self._emit(f"    ifge {true_label}")
+            branch = {
+                ast.BinaryOpKind.EQ: f"    ifeq {true_label}",
+                ast.BinaryOpKind.NE: f"    ifne {true_label}",
+                ast.BinaryOpKind.LT: f"    iflt {true_label}",
+                ast.BinaryOpKind.LE: f"    ifle {true_label}",
+                ast.BinaryOpKind.GT: f"    ifgt {true_label}",
+                ast.BinaryOpKind.GE: f"    ifge {true_label}",
+            }[op]
         else:
-            if op == ast.BinaryOpKind.EQ:
-                self._emit(f"    if_icmpeq {true_label}")
-            elif op == ast.BinaryOpKind.NE:
-                self._emit(f"    if_icmpne {true_label}")
-            elif op == ast.BinaryOpKind.LT:
-                self._emit(f"    if_icmplt {true_label}")
-            elif op == ast.BinaryOpKind.LE:
-                self._emit(f"    if_icmple {true_label}")
-            elif op == ast.BinaryOpKind.GT:
-                self._emit(f"    if_icmpgt {true_label}")
-            elif op == ast.BinaryOpKind.GE:
-                self._emit(f"    if_icmpge {true_label}")
-
+            branch = {
+                ast.BinaryOpKind.EQ: f"    if_icmpeq {true_label}",
+                ast.BinaryOpKind.NE: f"    if_icmpne {true_label}",
+                ast.BinaryOpKind.LT: f"    if_icmplt {true_label}",
+                ast.BinaryOpKind.LE: f"    if_icmple {true_label}",
+                ast.BinaryOpKind.GT: f"    if_icmpgt {true_label}",
+                ast.BinaryOpKind.GE: f"    if_icmpge {true_label}",
+            }[op]
+        self._emit(branch)
         self._emit("    iconst_0")
         self._emit(f"    goto {end_label}")
         self._emit(f"{true_label}:")
@@ -590,11 +517,9 @@ class JVMCodeGen:
         self._emit_expr(node.expr)
         src = getattr(node.expr, 'node_type', None)
         tgt = node.target_type
-
         src_is_double = _node_is_double(node.expr) or (
             isinstance(src, TypeDesc) and src.base_type == BaseType.DOUBLE)
         tgt_is_double = isinstance(tgt, TypeDesc) and tgt.base_type == BaseType.DOUBLE
-
         if src_is_double and not tgt_is_double and tgt != STR:
             self._emit("    d2i")
         elif not src_is_double and tgt_is_double and src != STR:
@@ -618,14 +543,11 @@ class JVMCodeGen:
             self._emit_io_read(node)
             self._emit("    iconst_0")
             return
-
         ident = getattr(node.func, 'node_ident', None)
         if ident is None:
             return
-
         for arg in node.args:
             self._emit_expr(arg)
-
         func_node = getattr(ident, 'func_node', None)
         if func_node:
             params_jvm = "".join(_pascal_type_to_jvm_field(p.type_name) for p in func_node.params)
@@ -634,7 +556,6 @@ class JVMCodeGen:
             param_types = getattr(ident.type, 'params', [])
             params_jvm = "".join(_jvm_type(p) for p in param_types)
             ret_jvm = _jvm_type(ident.type.return_type) if ident.type.return_type else "V"
-
         descriptor = f"({params_jvm}){ret_jvm}"
         self._emit(f"    invokestatic {self._class_name}/{name}{descriptor}")
 
@@ -659,8 +580,6 @@ class JVMCodeGen:
             self._emit("    dconst_0")
         elif type_name == "char":
             self._emit('    ldc ""')
-        elif type_name == "boolean":
-            self._emit("    iconst_0")
         else:
             self._emit("    iconst_0")
 
