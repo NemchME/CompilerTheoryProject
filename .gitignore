@@ -8,4 +8,5 @@ venv/
 __MACOSX/
 
 .idea/
-.vscode/
+.vscode/out/
+jasmin-2.4/
