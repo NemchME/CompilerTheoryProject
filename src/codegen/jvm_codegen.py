@@ -1,10 +1,8 @@
 from __future__ import annotations
-
 from src.ast import nodes as ast
 from src.pascal.semantic import (
     BaseType, TypeDesc, INT, BOOL, STR, VOID, DOUBLE,
 )
-
 
 def _jvm_type(type_desc: TypeDesc | None) -> str:
     if type_desc is None:
@@ -65,6 +63,7 @@ class _LabelCounter:
 class _LocalVarTable:
     def __init__(self, start_slot: int = 0):
         self._table: dict[str, tuple[int, str]] = {}
+        # имя -> (номер слота, тип)
         self._next_slot = start_slot
 
     def declare(self, name: str, type_name: str) -> int:
@@ -91,6 +90,7 @@ class JVMCodeGen:
         self._loop_stack: list[tuple[str, str]] = []
         self._locals: _LocalVarTable | None = None
         self._globals: set[str] = set()
+        # имя глобальной переменной -> тип
         self._global_types: dict[str, str] = {}
         self._in_function = False
 
@@ -390,7 +390,7 @@ class JVMCodeGen:
 
     def _emit_int_const(self, v: int):
         if -1 <= v <= 5:
-            self._emit(f"    iconst_{v}" if v >= 0 else "    iconst_m1")
+            self._emit(f"    iconst_{v}" if v >= 0 else "    iconst_m1") # Однобайтовая инструкция
         elif -128 <= v <= 127:
             self._emit(f"    bipush {v}")
         elif -32768 <= v <= 32767:

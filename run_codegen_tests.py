@@ -20,11 +20,9 @@ EXPECTED_ERRORS = {
     "error_undefined.pas",
 }
 
-
 def _class_name(path: Path) -> str:
     s = path.stem
     return s[0].upper() + s[1:]
-
 
 def run_tests(verbose: bool = False, do_run: bool = False):
     OUT_DIR.mkdir(exist_ok=True)
@@ -42,8 +40,7 @@ def run_tests(verbose: bool = False, do_run: bool = False):
     for pas_file in samples:
         name = pas_file.name
         expected_error = name in EXPECTED_ERRORS
-        print(f"\n{'─' * 55}")
-        print(f"  {name}")
+        print(f"\n{name}")
 
         text = pas_file.read_text(encoding="utf-8")
 
@@ -52,10 +49,10 @@ def run_tests(verbose: bool = False, do_run: bool = False):
             program = parser.parse_program()
         except PascalParserError as e:
             if expected_error:
-                print(f"  [SKIP] Expected parse error: {e}")
+                print(f"[SKIP] Expected parse error: {e}")
                 skipped += 1
             else:
-                print(f"  [FAIL] Unexpected parse error: {e}")
+                print(f"[FAIL] Unexpected parse error: {e}")
                 failed += 1
             continue
 
@@ -65,15 +62,15 @@ def run_tests(verbose: bool = False, do_run: bool = False):
             checker.check(program, scope)
         except SemanticException as e:
             if expected_error:
-                print(f"  [SKIP] Expected semantic error: {e}")
+                print(f"[SKIP] Expected semantic error: {e}")
                 skipped += 1
             else:
-                print(f"  [FAIL] Unexpected semantic error: {e}")
+                print(f"[FAIL] Unexpected semantic error: {e}")
                 failed += 1
             continue
 
         if expected_error:
-            print(f"  [FAIL] Expected an error but analysis passed")
+            print(f"[FAIL] Expected an error but analysis passed")
             failed += 1
             continue
 
@@ -82,20 +79,20 @@ def run_tests(verbose: bool = False, do_run: bool = False):
         try:
             jasmin_text = gen.generate(program)
         except Exception as e:
-            print(f"  [FAIL] Codegen exception: {e}")
+            print(f"[FAIL] Codegen exception: {e}")
             failed += 1
             continue
 
         j_file = OUT_DIR / f"{cn}.j"
         j_file.write_text(jasmin_text, encoding="utf-8")
-        print(f"  [OK]   Generated → {j_file}")
+        print(f"[OK] Generated → {j_file}")
 
         if verbose:
             print(textwrap.indent(jasmin_text, "       "))
 
         if jasmin_jar is None:
             if do_run:
-                print("  [WARN] jasmin.jar not found — skipping assembly")
+                print("[WARN] jasmin.jar not found — skipping assembly")
             passed += 1
             continue
 
@@ -104,10 +101,10 @@ def run_tests(verbose: bool = False, do_run: bool = False):
             capture_output=True, text=True,
         )
         if asm.returncode != 0:
-            print(f"  [FAIL] Jasmin error:\n{textwrap.indent(asm.stderr, '         ')}")
+            print(f"[FAIL] Jasmin error:\n{textwrap.indent(asm.stderr, '         ')}")
             failed += 1
             continue
-        print(f"  [OK]   Assembled  → {OUT_DIR}/{cn}.class")
+        print(f"[OK] Assembled  → {OUT_DIR}/{cn}.class")
 
         if do_run:
             run_result = subprocess.run(
@@ -117,17 +114,16 @@ def run_tests(verbose: bool = False, do_run: bool = False):
             output = run_result.stdout.strip()
             if run_result.returncode != 0:
                 err = run_result.stderr.strip()
-                print(f"  [FAIL] Runtime error:\n{textwrap.indent(err, '         ')}")
+                print(f"[FAIL] Runtime error:\n{textwrap.indent(err, '         ')}")
                 failed += 1
                 continue
             if output:
-                print(f"  [OUT]  {output!r}")
-            print(f"  [OK]   Run OK (exit 0)")
+                print(f"[OUT]  {output!r}")
+            print(f"[OK] Run OK (exit 0)")
 
         passed += 1
 
-    print(f"\n{'═' * 55}")
-    print(f"  Results: {passed} passed, {failed} failed, {skipped} skipped (expected errors)")
+    print(f"\nResults: {passed} passed, {failed} failed, {skipped} skipped")
     if jasmin_jar is None and not do_run:
         print(
             "\n  Tip: place jasmin.jar in the project root to also assemble .class files.\n"

@@ -6,5 +6,6 @@ begin
   if x > 10 then
     x := x - 1;
   while x > 0 do
-    x := x - 1
+    x := x - 1;
+  writeln(x);
 end.
