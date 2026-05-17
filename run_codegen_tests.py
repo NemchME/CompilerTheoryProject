@@ -85,7 +85,7 @@ def run_tests(verbose: bool = False, do_run: bool = False):
 
         j_file = OUT_DIR / f"{cn}.j"
         j_file.write_text(jasmin_text, encoding="utf-8")
-        print(f"[OK] Generated → {j_file}")
+        print(f"[OK] Generated -> {j_file}")
 
         if verbose:
             print(textwrap.indent(jasmin_text, "       "))
@@ -104,7 +104,7 @@ def run_tests(verbose: bool = False, do_run: bool = False):
             print(f"[FAIL] Jasmin error:\n{textwrap.indent(asm.stderr, '         ')}")
             failed += 1
             continue
-        print(f"[OK] Assembled  → {OUT_DIR}/{cn}.class")
+        print(f"[OK] Assembled  -> {OUT_DIR}/{cn}.class")
 
         if do_run:
             run_result = subprocess.run(

@@ -63,7 +63,6 @@ class _LabelCounter:
 class _LocalVarTable:
     def __init__(self, start_slot: int = 0):
         self._table: dict[str, tuple[int, str]] = {}
-        # имя -> (номер слота, тип)
         self._next_slot = start_slot
 
     def declare(self, name: str, type_name: str) -> int:
@@ -90,7 +89,6 @@ class JVMCodeGen:
         self._loop_stack: list[tuple[str, str]] = []
         self._locals: _LocalVarTable | None = None
         self._globals: set[str] = set()
-        # имя глобальной переменной -> тип
         self._global_types: dict[str, str] = {}
         self._in_function = False
 
@@ -302,12 +300,44 @@ class JVMCodeGen:
         else:
             self._emit("    return")
 
+    _MATH_BUILTINS_D = {
+        "sin":        ("invokestatic PascalRuntime/sin(D)D",       False),
+        "cos":        ("invokestatic PascalRuntime/cos(D)D",       False),
+        "tan":        ("invokestatic PascalRuntime/tan(D)D",       False),
+        "sqrt":       ("invokestatic PascalRuntime/sqrt(D)D",      False),
+        "exp":        ("invokestatic PascalRuntime/exp(D)D",       False),
+        "ln":         ("invokestatic PascalRuntime/ln(D)D",        False),
+        "arcsin":     ("invokestatic PascalRuntime/arcsin(D)D",    False),
+        "arccos":     ("invokestatic PascalRuntime/arccos(D)D",    False),
+        "arctan":     ("invokestatic PascalRuntime/arctan(D)D",    False),
+        "floor":      ("invokestatic PascalRuntime/floor(D)D",     False),
+        "ceil":       ("invokestatic PascalRuntime/ceil(D)D",      False),
+        "abs_double": ("invokestatic PascalRuntime/abs_double(D)D",False),
+        "frac":       ("invokestatic PascalRuntime/frac(D)D",      False),
+        "round":      ("invokestatic PascalRuntime/round(D)I",     True),
+        "trunc":      ("invokestatic PascalRuntime/trunc(D)I",     True),
+        "abs":        ("invokestatic PascalRuntime/abs(I)I",       True),
+        "sqr":        ("invokestatic PascalRuntime/sqr(I)I",       True),
+    }
+
+    def _emit_math_builtin(self, name: str, arg_node):
+        self._emit_expr(arg_node)
+        instr, is_int = self._MATH_BUILTINS_D[name]
+        self._emit(f"    {instr}")
+
     def _emit_call_stmt(self, node: ast.Call):
         name = node.func.name
         if name in ("write", "writeln"):
             self._emit_io_write(node, newline=(name == "writeln"))
         elif name in ("read", "readln"):
             self._emit_io_read(node)
+        elif name in self._MATH_BUILTINS_D:
+            if node.args:
+                self._emit_math_builtin(name, node.args[0])
+            if name in ("round", "trunc", "abs", "sqr"):
+                self._emit("    pop")
+            else:
+                self._emit("    pop2")
         else:
             self._emit_call_expr(node)
             ret_type = getattr(node, 'node_type', None)
@@ -320,18 +350,16 @@ class JVMCodeGen:
     def _emit_io_write(self, node: ast.Call, newline: bool):
         method = "println" if newline else "print"
         for arg in node.args:
-            self._emit("    getstatic java/lang/System/out Ljava/io/PrintStream;")
             self._emit_expr(arg)
             t = getattr(arg, 'node_type', None)
             if t == STR:
-                self._emit(f"    invokevirtual java/io/PrintStream/{method}(Ljava/lang/String;)V")
+                self._emit(f"    invokestatic PascalRuntime/{method}(Ljava/lang/String;)V")
             elif _node_is_double(arg):
-                self._emit(f"    invokevirtual java/io/PrintStream/{method}(D)V")
+                self._emit(f"    invokestatic PascalRuntime/{method}(D)V")
             else:
-                self._emit(f"    invokevirtual java/io/PrintStream/{method}(I)V")
+                self._emit(f"    invokestatic PascalRuntime/{method}(I)V")
         if newline and not node.args:
-            self._emit("    getstatic java/lang/System/out Ljava/io/PrintStream;")
-            self._emit(f"    invokevirtual java/io/PrintStream/{method}()V")
+            self._emit(f"    invokestatic PascalRuntime/{method}()V")
 
     def _emit_io_read(self, node: ast.Call):
         for arg in node.args:
@@ -542,6 +570,10 @@ class JVMCodeGen:
         if name in ("read", "readln"):
             self._emit_io_read(node)
             self._emit("    iconst_0")
+            return
+        if name in self._MATH_BUILTINS_D:
+            if node.args:
+                self._emit_math_builtin(name, node.args[0])
             return
         ident = getattr(node.func, 'node_ident', None)
         if ident is None:

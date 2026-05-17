@@ -174,6 +174,47 @@ class SemanticChecker:
             ident.func_node = None
             ident.num = 0
             scope.add_ident(ident)
+        for name in ("sin", "cos", "tan", "sqrt", "exp", "ln", "abs_double",
+                     "arcsin", "arccos", "arctan", "floor", "ceil", "frac"):
+            ident = IdentDesc.__new__(IdentDesc)
+            ident.name = name
+            ident.type = TypeDesc(return_type=DOUBLE, params=[DOUBLE])
+            ident.scope_type = "global"
+            ident.built_in = True
+            ident.value = None
+            ident.func_node = None
+            ident.num = 0
+            scope.add_ident(ident)
+        for name in ("abs",):
+            ident = IdentDesc.__new__(IdentDesc)
+            ident.name = name
+            ident.type = TypeDesc(return_type=INT, params=[INT])
+            ident.scope_type = "global"
+            ident.built_in = True
+            ident.value = None
+            ident.func_node = None
+            ident.num = 0
+            scope.add_ident(ident)
+        for name in ("round", "trunc"):
+            ident = IdentDesc.__new__(IdentDesc)
+            ident.name = name
+            ident.type = TypeDesc(return_type=INT, params=[DOUBLE])
+            ident.scope_type = "global"
+            ident.built_in = True
+            ident.value = None
+            ident.func_node = None
+            ident.num = 0
+            scope.add_ident(ident)
+        for name in ("sqr",):
+            ident = IdentDesc.__new__(IdentDesc)
+            ident.name = name
+            ident.type = TypeDesc(return_type=INT, params=[INT])
+            ident.scope_type = "global"
+            ident.built_in = True
+            ident.value = None
+            ident.func_node = None
+            ident.num = 0
+            scope.add_ident(ident)
 
     def visit_Program(self, node: ast.Program, scope):
         self.check(node.block, scope)
