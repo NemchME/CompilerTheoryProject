@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
+Использование:
     python pasc.py <файл.pas>          # скомпилировать и запустить
     python pasc.py <файл.pas> --no-run # только скомпилировать
     python pasc.py <файл.pas> --ast    # показать AST
+    python pasc.py <файл.pas> --bytecode # показать Jasmin байт-код
 """
 
 from __future__ import annotations
@@ -53,7 +55,7 @@ def ensure_runtime():
     return True
 
 
-def compile_and_run(source: Path, *, show_ast: bool = False, do_run: bool = True):
+def compile_and_run(source: Path, *, show_ast: bool = False, do_run: bool = True, show_bytecode: bool = False):
     if not source.exists():
         print(f"Ошибка: файл не найден: {source}")
         sys.exit(1)
@@ -88,6 +90,13 @@ def compile_and_run(source: Path, *, show_ast: bool = False, do_run: bool = True
     j_file.write_text(jasmin_text, encoding="utf-8")
     print(f"[OK] Сгенерирован: {j_file}")
 
+    if show_bytecode:
+        print()
+        print("=== Jasmin байт-код ===")
+        print("─" * 40)
+        print(jasmin_text)
+        print("─" * 40)
+
     jasmin_jar = find_jasmin()
     if jasmin_jar is None:
         print("Jasmin не найден.")
@@ -121,13 +130,15 @@ def main():
     )
     ap.add_argument("source", help="Pascal исходный файл (.pas)")
     ap.add_argument("--ast",    action="store_true", help="Показать AST")
-    ap.add_argument("--no-run", action="store_true", help="Не запускать после сборки")
+    ap.add_argument("--no-run",   action="store_true", help="Не запускать после сборки")
+    ap.add_argument("--bytecode", action="store_true", help="Показать сгенерированный Jasmin байт-код")
     args = ap.parse_args()
 
     compile_and_run(
         Path(args.source),
         show_ast=args.ast,
         do_run=not args.no_run,
+        show_bytecode=args.bytecode,
     )
 
 
