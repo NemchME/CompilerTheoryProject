@@ -124,7 +124,7 @@ def compile_and_run(source: Path, *, show_ast: bool = False, do_run: bool = True
 def main():
     ap = argparse.ArgumentParser(
         prog="pasc",
-        description="Pascal → JVM компилятор",
+        description="Pascal -> JVM компилятор",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

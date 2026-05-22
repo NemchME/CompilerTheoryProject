@@ -78,8 +78,7 @@ FOR_CONT3:
     istore 9
     goto FOR_START1
 FOR_END2:
-    getstatic java/lang/System/out Ljava/io/PrintStream;
     dload 7
-    invokevirtual java/io/PrintStream/println(D)V
+    invokestatic PascalRuntime/println(D)V
     return
 .end method

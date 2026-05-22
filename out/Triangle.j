@@ -48,20 +48,17 @@ CMP_TRUE6:
     iconst_1
 CMP_END7:
     ifeq WHILE_END5
-    getstatic java/lang/System/out Ljava/io/PrintStream;
     ldc "#"
-    invokevirtual java/io/PrintStream/print(Ljava/lang/String;)V
-    getstatic java/lang/System/out Ljava/io/PrintStream;
+    invokestatic PascalRuntime/print(Ljava/lang/String;)V
     ldc " "
-    invokevirtual java/io/PrintStream/print(Ljava/lang/String;)V
+    invokestatic PascalRuntime/print(Ljava/lang/String;)V
     iload 2
     iconst_1
     iadd
     istore 2
     goto WHILE_START4
 WHILE_END5:
-    getstatic java/lang/System/out Ljava/io/PrintStream;
-    invokevirtual java/io/PrintStream/println()V
+    invokestatic PascalRuntime/println()V
 FOR_CONT3:
     iload 1
     ldc 1
@@ -69,8 +66,7 @@ FOR_CONT3:
     istore 1
     goto FOR_START1
 FOR_END2:
-    getstatic java/lang/System/out Ljava/io/PrintStream;
-    invokevirtual java/io/PrintStream/println()V
+    invokestatic PascalRuntime/println()V
     iconst_1
     istore 1
     iload 3
@@ -93,9 +89,8 @@ CMP_TRUE13:
     iconst_1
 CMP_END14:
     ifeq WHILE_END12
-    getstatic java/lang/System/out Ljava/io/PrintStream;
     ldc " "
-    invokevirtual java/io/PrintStream/print(Ljava/lang/String;)V
+    invokestatic PascalRuntime/print(Ljava/lang/String;)V
     iload 2
     iconst_1
     iadd
@@ -118,17 +113,15 @@ CMP_TRUE17:
     iconst_1
 CMP_END18:
     ifeq WHILE_END16
-    getstatic java/lang/System/out Ljava/io/PrintStream;
     ldc "*"
-    invokevirtual java/io/PrintStream/print(Ljava/lang/String;)V
+    invokestatic PascalRuntime/print(Ljava/lang/String;)V
     iload 2
     iconst_1
     iadd
     istore 2
     goto WHILE_START15
 WHILE_END16:
-    getstatic java/lang/System/out Ljava/io/PrintStream;
-    invokevirtual java/io/PrintStream/println()V
+    invokestatic PascalRuntime/println()V
 FOR_CONT10:
     iload 1
     ldc 1
