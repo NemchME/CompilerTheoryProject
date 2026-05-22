@@ -115,7 +115,7 @@ def compile_and_run(source: Path, *, show_ast: bool = False, do_run: bool = True
     print(f"[OK] Собран:       {OUT_DIR}/{cn}.class")
 
     if do_run:
-        print(f"[>>] Запуск {cn}:")
+        print(f"Результат работы {cn}:")
         print("─" * 40)
         subprocess.run(["java", "-cp", str(OUT_DIR), cn])
         print("─" * 40)

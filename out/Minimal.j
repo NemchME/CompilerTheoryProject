@@ -56,8 +56,7 @@ CMP_END7:
     istore 1
     goto WHILE_START4
 WHILE_END5:
-    getstatic java/lang/System/out Ljava/io/PrintStream;
     iload 1
-    invokevirtual java/io/PrintStream/println(I)V
+    invokestatic PascalRuntime/println(I)V
     return
 .end method
